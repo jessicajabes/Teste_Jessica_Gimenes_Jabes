@@ -1,0 +1,42 @@
+services:
+
+  integracao_api_publica:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: intuitive-care-integracao-api
+    stdin_open: true
+    tty: true
+    environment:
+      API_BASE_URL: ${API_BASE_URL}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    volumes:
+      - ./backend:/app
+      - ./backend/downloads:/app/downloads
+      - ./backend/checkpoints:/app/checkpoints
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: intuitive-care
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database:/docker-entrypoint-initdb.d/:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s 
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
