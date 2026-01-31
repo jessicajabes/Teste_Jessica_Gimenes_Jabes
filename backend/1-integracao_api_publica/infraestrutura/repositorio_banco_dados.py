@@ -30,25 +30,85 @@ class RepositorioBancoDados:
             return 0
         
         try:
+            from datetime import datetime
             cursor = self.conexao.cursor()
             processados = 0
             erros = 0
-            erros_detalhados = {}
             registros_com_erro = []
             
+            # Separar registros válidos e inválidos
+            registros_validos = []
+            registros_invalidos = []
+            
             for idx, registro in enumerate(dados):
-                idx_real = idx  # Número real da linha no arquivo original
-                contexto_base = (
-                    f"arquivo={arquivo_origem or 'desconhecido'}, "
-                    f"linha={idx_real + 1}, "
-                    f"reg_ans={registro.get('REG_ANS')}, "
-                    f"cd_conta={registro.get('CD_CONTA_CONTABIL')}"
-                )
-                # Validar se há campos vazios (CNPJ/REG_ANS ou DESCRICAO/Razão Social)
                 validacao = self._validar_campos_obrigatorios(registro)
                 
                 if validacao['tem_erro']:
-                    # Inserir com campos NULL e registrar o erro
+                    registros_invalidos.append((idx, registro, validacao))
+                else:
+                    registros_validos.append((idx, registro))
+            
+            # ========== PROCESSAR REGISTROS VÁLIDOS EM BATCH ==========
+            if registros_validos:
+                valores_batch = []
+                
+                for idx, registro in registros_validos:
+                    contexto_base = (
+                        f"arquivo={arquivo_origem or 'desconhecido'}, "
+                        f"linha={idx + 1}, "
+                        f"reg_ans={registro.get('REG_ANS')}, "
+                        f"cd_conta={registro.get('CD_CONTA_CONTABIL')}"
+                    )
+                    
+                    vl_saldo_inicial = self._normalizar_numero(
+                        registro.get('VL_SALDO_INICIAL'),
+                        campo='VL_SALDO_INICIAL',
+                        contexto=contexto_base
+                    )
+                    vl_saldo_final = self._normalizar_numero(
+                        registro.get('VL_SALDO_FINAL'),
+                        campo='VL_SALDO_FINAL',
+                        contexto=contexto_base
+                    )
+                    
+                    valor_trimestre = None
+                    if vl_saldo_inicial is not None and vl_saldo_final is not None:
+                        valor_trimestre = vl_saldo_final - vl_saldo_inicial
+                    
+                    valores_batch.append((
+                        registro.get('DATA'),
+                        registro.get('REG_ANS'),
+                        registro.get('CD_CONTA_CONTABIL'),
+                        registro.get('DESCRICAO'),
+                        vl_saldo_inicial,
+                        vl_saldo_final,
+                        valor_trimestre,
+                        registro.get('TRIMESTRE'),
+                        registro.get('ANO')
+                    ))
+                
+                # Inserir todos de uma vez
+                if valores_batch:
+                    sql = """
+                        INSERT INTO demonstracoes_contabeis_temp 
+                        (data, reg_ans, cd_conta_contabil, descricao, vl_saldo_inicial, vl_saldo_final, valor_trimestre, trimestre, ano)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (reg_ans, cd_conta_contabil, trimestre, ano) DO NOTHING
+                    """
+                    try:
+                        cursor.executemany(sql, valores_batch)
+                        processados = len(valores_batch)
+                        self.conexao.commit()
+#                        logger.debug(f"[BATCH] {processados} registros inseridos com sucesso")
+                    except Exception as e:
+                        self.conexao.rollback()
+                        cursor = self.conexao.cursor()
+                        logger.error(f"Erro ao inserir batch em {arquivo_origem}: {e}")
+                        erros += len(valores_batch)
+            
+            # ========== PROCESSAR REGISTROS INVÁLIDOS ==========
+            if registros_invalidos:
+                for idx, registro, validacao in registros_invalidos:
                     erros += 1
                     
                     sql = """
@@ -59,26 +119,23 @@ class RepositorioBancoDados:
                     """
                     
                     try:
-                        # Se REG_ANS está vazio, usar NULL
-                        reg_ans = self._limpar_valor(registro.get('REG_ANS'))
-                        reg_ans = reg_ans if reg_ans else None
+                        reg_ans = self._limpar_valor(registro.get('REG_ANS')) or None
+                        descricao = self._limpar_valor(registro.get('DESCRICAO')) or None
                         
-                        # Se DESCRICAO está vazio, usar NULL
-                        descricao = self._limpar_valor(registro.get('DESCRICAO'))
-                        descricao = descricao if descricao else None
+                        contexto_base = (
+                            f"arquivo={arquivo_origem or 'desconhecido'}, "
+                            f"linha={idx + 1}"
+                        )
                         
                         vl_saldo_inicial = self._normalizar_numero(
                             registro.get('VL_SALDO_INICIAL'),
-                            campo='VL_SALDO_INICIAL',
                             contexto=contexto_base
                         )
                         vl_saldo_final = self._normalizar_numero(
                             registro.get('VL_SALDO_FINAL'),
-                            campo='VL_SALDO_FINAL',
                             contexto=contexto_base
                         )
                         
-                        # Calcular valor do trimestre
                         valor_trimestre = None
                         if vl_saldo_inicial is not None and vl_saldo_final is not None:
                             valor_trimestre = vl_saldo_final - vl_saldo_inicial
@@ -96,13 +153,12 @@ class RepositorioBancoDados:
                         )
                         
                         cursor.execute(sql, valores)
+                        self.conexao.commit()
                         processados += 1
                         
-                        # Registrar aviso no arquivo de erros
-                        from datetime import datetime
                         registros_com_erro.append({
                             'arquivo_origem': arquivo_origem or 'desconhecido',
-                            'linha_arquivo': idx_real + 1,
+                            'linha_arquivo': idx + 1,
                             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                             'reg_ans': registro.get('REG_ANS'),
                             'cd_conta_contabil': registro.get('CD_CONTA_CONTABIL'),
@@ -115,18 +171,16 @@ class RepositorioBancoDados:
                             'tipo_erro': 'AVISO_VALIDACAO',
                             'origem': 'Validação de campos obrigatórios'
                         })
-                        logger.warning(f"Aviso validação em {arquivo_origem}:{idx_real + 1} - {validacao['mensagem']}")
                         
-                        if erros <= 3:
-                            print(f"      ⚠ Aviso no registro {idx}: {validacao['mensagem']}")
-                            print(f"        Dados inseridos com NULL nos campos vazios")
+                        logger.warning(f"Aviso em {arquivo_origem}:{idx + 1} - {validacao['mensagem']}")
                         
                     except Exception as e:
-                        erro_msg = str(e)
-                        from datetime import datetime
+                        self.conexao.rollback()
+                        cursor = self.conexao.cursor()
+                        logger.error(f"Erro ao inserir registro com aviso {arquivo_origem}:{idx + 1} - {e}")
                         registros_com_erro.append({
                             'arquivo_origem': arquivo_origem or 'desconhecido',
-                            'linha_arquivo': idx_real + 1,
+                            'linha_arquivo': idx + 1,
                             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                             'reg_ans': registro.get('REG_ANS'),
                             'cd_conta_contabil': registro.get('CD_CONTA_CONTABIL'),
@@ -135,93 +189,14 @@ class RepositorioBancoDados:
                             'vl_saldo_final': registro.get('VL_SALDO_FINAL'),
                             'trimestre': registro.get('TRIMESTRE'),
                             'ano': registro.get('ANO'),
-                            'motivo_erro': f"{validacao['mensagem']} + Erro ao inserir: {erro_msg}",
+                            'motivo_erro': str(e),
                             'tipo_erro': 'VALIDACAO+INSERCAO',
-                            'origem': 'Validação + Inserção no banco de dados'
+                            'origem': 'Validação + Inserção'
                         })
-                        self.conexao.rollback()
-                        cursor = self.conexao.cursor()
-                else:
-                    # Inserir normalmente
-                    sql = """
-                        INSERT INTO demonstracoes_contabeis_temp 
-                        (data, reg_ans, cd_conta_contabil, descricao, vl_saldo_inicial, vl_saldo_final, valor_trimestre, trimestre, ano)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (reg_ans, cd_conta_contabil, trimestre, ano) DO NOTHING
-                    """
-                    
-                    try:
-                        vl_saldo_inicial = self._normalizar_numero(
-                            registro.get('VL_SALDO_INICIAL'),
-                            campo='VL_SALDO_INICIAL',
-                            contexto=contexto_base
-                        )
-                        vl_saldo_final = self._normalizar_numero(
-                            registro.get('VL_SALDO_FINAL'),
-                            campo='VL_SALDO_FINAL',
-                            contexto=contexto_base
-                        )
-                        
-                        # Calcular valor do trimestre
-                        valor_trimestre = None
-                        if vl_saldo_inicial is not None and vl_saldo_final is not None:
-                            valor_trimestre = vl_saldo_final - vl_saldo_inicial
-                        
-                        valores = (
-                            registro.get('DATA'),
-                            registro.get('REG_ANS'),
-                            registro.get('CD_CONTA_CONTABIL'),
-                            registro.get('DESCRICAO'),
-                            vl_saldo_inicial,
-                            vl_saldo_final,
-                            valor_trimestre,
-                            registro.get('TRIMESTRE'),
-                            registro.get('ANO')
-                        )
-                        
-                        cursor.execute(sql, valores)
-                        processados += 1
-                    except Exception as e:
-                        erros += 1
-                        erro_msg = str(e)
-                        from datetime import datetime
-                        
-                        logger.error(f"Erro ao inserir em {arquivo_origem}:{idx_real + 1} - {erro_msg}")
-                        
-                        if erro_msg not in erros_detalhados:
-                            erros_detalhados[erro_msg] = {
-                                'count': 0,
-                                'amostra': registro
-                            }
-                        erros_detalhados[erro_msg]['count'] += 1
-                        
-                        # Adicionar registro com erro para gerar CSV
-                        registros_com_erro.append({
-                            'arquivo_origem': arquivo_origem or 'desconhecido',
-                            'linha_arquivo': idx_real + 1,
-                            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'reg_ans': registro.get('REG_ANS'),
-                            'cd_conta_contabil': registro.get('CD_CONTA_CONTABIL'),
-                            'descricao': registro.get('DESCRICAO'),
-                            'vl_saldo_inicial': registro.get('VL_SALDO_INICIAL'),
-                            'vl_saldo_final': registro.get('VL_SALDO_FINAL'),
-                            'trimestre': registro.get('TRIMESTRE'),
-                            'ano': registro.get('ANO'),
-                            'motivo_erro': erro_msg,
-                            'tipo_erro': 'INSERCAO_BANCO',
-                            'origem': 'Inserção no banco de dados'
-                        })
-                        
-                        if erros <= 3:
-                            print(f"      Erro ao inserir registro {idx}: {e}")
-                            print(f"      Valores: reg_ans={registro.get('REG_ANS')}, cd_conta={registro.get('CD_CONTA_CONTABIL')}, trimestre={registro.get('TRIMESTRE')}, ano={registro.get('ANO')}")
-                        self.conexao.rollback()
-                        cursor = self.conexao.cursor()
             
-            self.conexao.commit()
             cursor.close()
             
-            # Exibir resumo de erros
+            # Gerar CSV de erros se houver
             if registros_com_erro:
                 print(f"\n      === RESUMO DE AVISOS E ERROS ({len(registros_com_erro)} total) ===")
                 
@@ -236,7 +211,6 @@ class RepositorioBancoDados:
                 for motivo, count in erros_por_tipo.items():
                     print(f"      - {count}x: {motivo}")
                 
-                # Gerar CSV de erros
                 self._gerar_csv_erros(registros_com_erro)
             
             return processados
@@ -464,6 +438,15 @@ class RepositorioBancoDados:
         try:
             import os
             from sqlalchemy import create_engine
+            
+            # Garantir que o diretório existe e tem permissões
+            os.makedirs(diretorio_saida, mode=0o777, exist_ok=True)
+            
+            # Tentar dar permissão total à pasta
+            try:
+                os.chmod(diretorio_saida, 0o777)
+            except:
+                pass  # Ignorar erros de chmod
             os.makedirs(diretorio_saida, exist_ok=True)
             
             # Converter URL de conexão PostgreSQL para SQLAlchemy
@@ -630,79 +613,41 @@ class RepositorioBancoDados:
             return False
 
     def calcular_valor_total_csv(self, diretorio_saida: str) -> float:
-        """Calcula o valor total (VL_SALDO_FINAL - VL_SALDO_INICIAL) do CSV consolidado gerado"""
+        """Calcula o valor total direto do banco de dados (soma de valor_trimestre)"""
         try:
-            import os
-            import re
-            
-            # Usar o arquivo formatado (com valores em formato brasileiro)
-            arquivo_csv = os.path.join(diretorio_saida, 'consolidado_todas_despesas.csv')
-            
-            if not os.path.exists(arquivo_csv):
-                logger.warning(f"Arquivo CSV não encontrado: {arquivo_csv}")
+            if not self.conexao:
+                logger.warning("Sem conexão com banco para calcular valor total")
                 return 0.0
             
-            # Ler o CSV gerado com encoding correto
-            df = pd.read_csv(arquivo_csv, sep=';', encoding='utf-8-sig')
+            cursor = self.conexao.cursor()
             
-            # Procurar pela coluna valor_trimestre (já é a diferença calculada)
-            coluna_valor = None
-            for col in df.columns:
-                if 'valor_trimestre' in str(col).lower():
-                    coluna_valor = col
-                    break
+            # Calcular soma direto do banco (muito mais rápido e confiável)
+            sql = """
+                SELECT 
+                    COALESCE(SUM(valor_trimestre), 0) as total_trimestre,
+                    COALESCE(SUM(vl_saldo_final - vl_saldo_inicial), 0) as total_diferenca,
+                    COUNT(*) as total_registros
+                FROM demonstracoes_contabeis_temp
+            """
             
-            if coluna_valor is None:
-                # Se não encontrar valor_trimestre, calcular a diferença
-                coluna_final = None
-                coluna_inicial = None
-                
-                for col in df.columns:
-                    if 'vl_saldo_final' in str(col).lower():
-                        coluna_final = col
-                    elif 'vl_saldo_inicial' in str(col).lower():
-                        coluna_inicial = col
-                
-                if coluna_final is None or coluna_inicial is None:
-                    logger.warning("Colunas de valores não encontradas no CSV")
-                    return 0.0
-                
-                # Converter para numérico, tratando formato brasileiro (1.234,56 -> 1234.56)
-                def br_to_float(val):
-                    if pd.isna(val) or val == '':
-                        return 0.0
-                    val_str = str(val).strip()
-                    # Remover espaços, pontos (milhares) e substituir vírgula por ponto
-                    val_str = val_str.replace(' ', '').replace('.', '').replace(',', '.')
-                    try:
-                        return float(val_str)
-                    except:
-                        return 0.0
-                
-                df[coluna_final] = df[coluna_final].apply(br_to_float)
-                df[coluna_inicial] = df[coluna_inicial].apply(br_to_float)
-                
-                # Calcular diferença (VL_SALDO_FINAL - VL_SALDO_INICIAL)
-                valor_total = (df[coluna_final] - df[coluna_inicial]).sum()
-            else:
-                # Usar valor_trimestre diretamente (já é a diferença)
-                def br_to_float(val):
-                    if pd.isna(val) or val == '':
-                        return 0.0
-                    val_str = str(val).strip()
-                    # Remover espaços, pontos (milhares) e substituir vírgula por ponto
-                    val_str = val_str.replace(' ', '').replace('.', '').replace(',', '.')
-                    try:
-                        return float(val_str)
-                    except:
-                        return 0.0
-                
-                df[coluna_valor] = df[coluna_valor].apply(br_to_float)
-                valor_total = df[coluna_valor].sum()
+            cursor.execute(sql)
+            resultado = cursor.fetchone()
+            cursor.close()
             
-            logger.info(f"Valor total final calculado do CSV (FINAL - INICIAL): {valor_total}")
-            return valor_total
+            if resultado:
+                total_trimestre = float(resultado[0] or 0)
+                total_diferenca = float(resultado[1] or 0)
+                total_registros = int(resultado[2] or 0)
+                
+                logger.info(f"Cálculo do banco: {total_registros} registros")
+                logger.info(f"  - Soma(valor_trimestre): {total_trimestre:,.2f}")
+                logger.info(f"  - Soma(final - inicial): {total_diferenca:,.2f}")
+                
+                # Usar valor_trimestre (mais confiável pois foi calculado na inserção)
+                return total_trimestre
+            
+            return 0.0
             
         except Exception as e:
-            logger.error(f"Erro ao calcular valor total do CSV: {e}")
+            logger.error(f"Erro ao calcular valor total do banco: {e}")
             return 0.0

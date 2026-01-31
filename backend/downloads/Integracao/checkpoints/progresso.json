@@ -1,0 +1,328 @@
+{
+  "arquivo_atual": "3T2025.csv",
+  "registro_atual": 0,
+  "status": "completo",
+  "registros_processados": 2113924,
+  "registros_com_erro": 0,
+  "trimestres_processados": [
+    {
+      "ano": 2025,
+      "trimestre": 1,
+      "timestamp": "2026-01-31T17:35:09.407667"
+    },
+    {
+      "ano": 2025,
+      "trimestre": 2,
+      "timestamp": "2026-01-31T17:40:03.281323"
+    },
+    {
+      "ano": 2025,
+      "trimestre": 3,
+      "timestamp": "2026-01-31T17:45:04.677288"
+    }
+  ],
+  "historico": [
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707100,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.720062"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707200,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.758055"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707300,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.796054"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707400,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.834582"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707500,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.871353"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707600,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.907624"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707700,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.944818"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707800,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:02.980603"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 707900,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.016964"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708000,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.053297"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708100,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.090294"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708200,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.127026"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708300,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.166658"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708400,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.210553"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708500,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.248298"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708600,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.286530"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708700,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.356583"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708800,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.396814"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 708900,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.444335"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709000,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.490616"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709100,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.533515"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709200,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.573257"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709300,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.619057"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709400,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.662303"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709500,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.721111"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709600,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.766798"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709700,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.806867"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709800,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.843493"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 709900,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.879314"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710000,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.914465"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710100,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.951491"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710200,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:03.988081"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710300,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.023744"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710400,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.061607"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710500,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.098681"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710600,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.135036"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710700,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.170459"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710800,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.208771"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 710900,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.245338"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711000,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.282013"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711100,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.320606"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711200,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.359307"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711300,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.396618"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711400,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.433686"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711500,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.470832"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711600,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.507360"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711700,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.545125"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711800,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.594116"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711900,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.636790"
+    },
+    {
+      "arquivo": "3T2025.csv",
+      "registro": 711943,
+      "status": "em_progresso",
+      "timestamp": "2026-01-31T17:45:04.662949"
+    }
+  ],
+  "timestamp_atualizacao": "2026-01-31T17:45:04.662936",
+  "data_conclusao": "2026-01-31T17:46:26.233724"
+}

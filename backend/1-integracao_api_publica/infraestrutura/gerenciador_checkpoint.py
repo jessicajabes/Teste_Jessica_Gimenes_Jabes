@@ -22,6 +22,7 @@ class GerenciadorCheckpoint:
                 "status": "nao_iniciado",
                 "registros_processados": 0,
                 "registros_com_erro": 0,
+                "trimestres_processados": [],
                 "historico": []
             })
     
@@ -57,6 +58,20 @@ class GerenciadorCheckpoint:
         dados["arquivo_atual"] = arquivo
         dados["registro_atual"] = 0
         dados["status"] = "arquivo_completo"
+        self._salvar(dados)
+    
+    def marcar_trimestre_processado(self, ano: int, trimestre: int):
+        """Registra um trimestre que foi processado com sucesso"""
+        dados = self._carregar()
+        trimestres = dados.get("trimestres_processados", [])
+        
+        trimestre_info = {"ano": ano, "trimestre": trimestre, "timestamp": datetime.now().isoformat()}
+        
+        # Verificar se já não está na lista
+        if not any(t["ano"] == ano and t["trimestre"] == trimestre for t in trimestres):
+            trimestres.append(trimestre_info)
+        
+        dados["trimestres_processados"] = trimestres
         self._salvar(dados)
     
     def marcar_processamento_completo(self, total_registros: int, total_erros: int):
@@ -132,6 +147,15 @@ class GerenciadorCheckpoint:
         print(f"Registro Atual: {dados.get('registro_atual', 0)}")
         print(f"Registros Processados: {dados.get('registros_processados', 0)}")
         print(f"Registros com Erro: {dados.get('registros_com_erro', 0)}")
+        
+        trimestres = dados.get('trimestres_processados', [])
+        if trimestres:
+            print(f"\nTrimestres Processados:")
+            for t in trimestres:
+                print(f"  - {t['trimestre']}T{t['ano']}")
+        else:
+            print(f"Trimestres Processados: Nenhum")
+        
         if dados.get('data_conclusao'):
-            print(f"Concluído em: {dados['data_conclusao']}")
+            print(f"\nConcluído em: {dados['data_conclusao']}")
         print("="*60 + "\n")

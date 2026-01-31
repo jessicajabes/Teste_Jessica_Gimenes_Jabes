@@ -46,6 +46,9 @@ class CarregarDadosBanco:
     def executar(self, trimestres: List, diretorio_downloads: str) -> Dict:
         print("\nProcessando dados e inserindo no banco de dados...")
         
+        # Exibir status do checkpoint no início
+        self.gerenciador_checkpoint.exibir_status()
+        
         if not self.repo_banco.conectar():
             print("Erro: Não foi possível conectar ao banco de dados")
             return {"registros": 0, "erros": 0, "valor_inicial": 0.0, "valor_final": 0.0}
@@ -59,7 +62,7 @@ class CarregarDadosBanco:
         print("\n📋 Carregando tabelas de operadoras...")
         resultado_operadoras = self.carregador_operadoras.executar()
         if resultado_operadoras['ativas'] or resultado_operadoras['canceladas']:
-            print("  📥 Inserindo operadoras no banco de dados...")
+            print("   Inserindo operadoras no banco de dados...")
             self.repo_banco.limpar_tabela_operadoras()
             
             # Inserir operadoras ativas
@@ -73,7 +76,7 @@ class CarregarDadosBanco:
                 df_ativas['STATUS'] = 'ATIVA'
                 dados_ativas = df_ativas.to_dict('records')
                 total_ativas = self.repo_banco.inserir_operadoras(dados_ativas)
-                print(f"     ✅ {total_ativas} operadoras ativas inseridas")
+                print(f"     {total_ativas} operadoras ativas inseridas")
             
             # Inserir operadoras canceladas
             if resultado_operadoras['canceladas']:
@@ -86,18 +89,23 @@ class CarregarDadosBanco:
                 df_canceladas['STATUS'] = 'CANCELADA'
                 dados_canceladas = df_canceladas.to_dict('records')
                 total_canceladas = self.repo_banco.inserir_operadoras(dados_canceladas)
-                print(f"     ✅ {total_canceladas} operadoras canceladas inseridas")
+                print(f"     {total_canceladas} operadoras canceladas inseridas")
         else:
             logger.warning("Nenhuma tabela de operadora foi carregada com sucesso")
-            print("  ⚠️  Aviso: Operadoras não foram carregadas. Continuando sem enriquecimento...")
+            print("    Aviso: Operadoras não foram carregadas. Continuando sem enriquecimento...")
         
-        if checkpoint["status"] == "nao_iniciado":
-            self.repo_banco.limpar_tabela()
-            self.repo_arquivo.extrair_zips(diretorio_downloads)
-        else:
-            print(f"\nRetomando de onde parou:")
-            print(f"  Arquivo: {checkpoint['arquivo_atual']}")
-            print(f"  Registro: {checkpoint['registro_atual']}")
+        # Limpar tabela de demonstrações SEMPRE antes de processar (como operadoras)
+        print("\n🗑️  Limpando tabela de demonstrações contábeis...")
+        self.repo_banco.limpar_tabela()
+        print("   Tabela limpa com sucesso!")
+        
+        # Resetar checkpoint para garantir que vai processar todos os arquivos
+        print("\n🔄 Resetando checkpoint para processar todos os trimestres...")
+        self.gerenciador_checkpoint.resetar_checkpoint()
+        checkpoint = self.gerenciador_checkpoint.obter_checkpoint()
+        
+        # Extrair ZIPs se necessário
+        self.repo_arquivo.extrair_zips(diretorio_downloads)
         
         arquivos = self._obter_arquivos_filtrados(diretorio_downloads)
         
@@ -107,12 +115,6 @@ class CarregarDadosBanco:
         for tipo, caminhos in arquivos.items():
             for caminho in caminhos:
                 nome_arquivo = os.path.basename(caminho)
-                
-                if checkpoint["status"] != "nao_iniciado":
-                    if nome_arquivo != checkpoint["arquivo_atual"]:
-                        continue
-                    else:
-                        checkpoint["status"] = "em_progresso"
                 
                 print(f"\n  Processando: {nome_arquivo}")
                 
@@ -141,24 +143,28 @@ class CarregarDadosBanco:
                     
                     total_registros += resultado["registros_processados"]
                     total_erros += resultado["registros_com_erro"]
+                    
+                    # Registrar o trimestre como processado com sucesso
+                    self.gerenciador_checkpoint.marcar_trimestre_processado(ano, trimestre)
                 
                 self.gerenciador_checkpoint.marcar_arquivo_completo(nome_arquivo)
                 checkpoint["arquivo_atual"] = nome_arquivo
                 checkpoint["registro_atual"] = 0
         
         # Gerar CSV consolidado fazendo JOIN no banco de dados
-        print("\n📊 Gerando CSVs consolidados com JOIN no banco...")
+        print("\n Gerando CSVs consolidados com JOIN no banco...")
         diretorio_consolidados = os.path.join(diretorio_downloads, 'consolidados')
         log_sessao = os.getenv('LOG_SESSAO_ATUAL')
         sucesso = self.repo_banco.gerar_csv_consolidado_com_join(diretorio_consolidados, arquivo_log_sessao=log_sessao)
         
-        # Calcular valor total final do CSV gerado
-        valor_total_final = 0.0
         if sucesso:
-            print("  ✅ CSVs consolidados gerados com sucesso!")
-            valor_total_final = self.repo_banco.calcular_valor_total_csv(diretorio_consolidados)
+            print("   CSVs consolidados gerados com sucesso!")
         else:
-            print("  ❌ Erro ao gerar CSVs consolidados")
+            print("   Erro ao gerar CSVs consolidados (tentando calcular valor mesmo assim)")
+        
+        # Calcular valor total final SEMPRE (do banco de dados, não do CSV)
+        # Isso garante que temos o valor mesmo se o CSV falhar
+        valor_total_final = self.repo_banco.calcular_valor_total_csv(diretorio_consolidados)
         
         self.gerenciador_checkpoint.marcar_processamento_completo(total_registros, total_erros)
         

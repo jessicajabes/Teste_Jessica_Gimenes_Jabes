@@ -33,9 +33,9 @@ class ProcessadorEmLotes:
                 
                 if resultado:
                     registros_processados += len(lote)
-                    print(f"       {len(lote)} registros inseridos")
+                    #print(f"       {len(lote)} registros inseridos")
                     
-                    # ✅ Atualizar checkpoint APENAS quando há sucesso
+                    #  Atualizar checkpoint APENAS quando há sucesso
                     gerenciador_checkpoint.atualizar_checkpoint(
                         arquivo=arquivo_atual,
                         registro=fim,
