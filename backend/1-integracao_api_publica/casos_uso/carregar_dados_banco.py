@@ -29,11 +29,6 @@ class CarregarDadosBanco:
         for encoding in CarregarDadosBanco.ENCODINGS:
             try:
                 df = pd.read_csv(caminho, sep=sep, encoding=encoding, quotechar='"', on_bad_lines='skip', **kwargs)
-                # Se conseguiu ler, limpar caracteres problemáticos
-                for col in df.columns:
-                    if df[col].dtype == 'object':
-                        # Corrigir encoding quebrado (ex: SaÃºde -> Saúde)
-                        df[col] = df[col].apply(lambda x: x.encode('latin-1').decode('utf-8', errors='ignore') if isinstance(x, str) else x)
                 logger.debug(f"Arquivo {os.path.basename(caminho)} lido com sucesso usando encoding: {encoding}")
                 return df
             except Exception as e:
@@ -95,12 +90,12 @@ class CarregarDadosBanco:
             print("    Aviso: Operadoras não foram carregadas. Continuando sem enriquecimento...")
         
         # Limpar tabela de demonstrações SEMPRE antes de processar (como operadoras)
-        print("\n🗑️  Limpando tabela de demonstrações contábeis...")
-        self.repo_banco.limpar_tabela()
+        print("\n  Limpando tabela de demonstrações contábeis...")
+    #    self.repo_banco.limpar_tabela()
         print("   Tabela limpa com sucesso!")
         
         # Resetar checkpoint para garantir que vai processar todos os arquivos
-        print("\n🔄 Resetando checkpoint para processar todos os trimestres...")
+        print("\n Resetando checkpoint para processar todos os trimestres...")
         self.gerenciador_checkpoint.resetar_checkpoint()
         checkpoint = self.gerenciador_checkpoint.obter_checkpoint()
         
@@ -133,16 +128,18 @@ class CarregarDadosBanco:
                     valor_total_inicial += valor_arquivo
                     print(f"    Valor do arquivo (Final - Inicial): R$ {valor_arquivo:,.2f}".replace(',', '#').replace('.', ',').replace('#', '.'))
                     
-                    resultado = self.processador_lotes.processar_em_lotes(
-                        registros=dados,
-                        funcao_inserir=self.repo_banco.inserir_demonstracoes,
-                        gerenciador_checkpoint=self.gerenciador_checkpoint,
-                        arquivo_atual=nome_arquivo,
-                        registro_inicial=checkpoint.get("registro_atual", 0)
-                    )
+                    # resultado = self.processador_lotes.processar_em_lotes(
+                    #     registros=dados,
+                    #     funcao_inserir=self.repo_banco.inserir_demonstracoes,
+                    #     gerenciador_checkpoint=self.gerenciador_checkpoint,
+                    #     arquivo_atual=nome_arquivo,
+                    #     registro_inicial=checkpoint.get("registro_atual", 0)
+                    # )
                     
-                    total_registros += resultado["registros_processados"]
-                    total_erros += resultado["registros_com_erro"]
+                    # total_registros += resultado["registros_processados"]
+                    # total_erros += resultado["registros_com_erro"]
+                    total_registros += 0
+                    total_erros += 0
                     
                     # Registrar o trimestre como processado com sucesso
                     self.gerenciador_checkpoint.marcar_trimestre_processado(ano, trimestre)

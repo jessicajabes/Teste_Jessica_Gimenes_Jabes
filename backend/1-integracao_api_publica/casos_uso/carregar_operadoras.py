@@ -171,10 +171,25 @@ class CarregarOperadoras:
         Returns:
             DataFrame com os dados ou None se falhar
         """
+        from io import BytesIO
         response = requests.get(url, timeout=self.TIMEOUT)
         response.raise_for_status()
         
         if extensao == 'csv':
+            # Tentar com múltiplos encodings para garantir leitura correta
+            encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252']
+            for encoding in encodings:
+                try:
+                    return pd.read_csv(
+                        BytesIO(response.content),
+                        sep=';',
+                        encoding=encoding,
+                        on_bad_lines='skip'
+                    )
+                except:
+                    continue
+            
+            # Se nenhum encoding funcionou, tentar com response.text
             return pd.read_csv(
                 pd.io.common.StringIO(response.text),
                 sep=';',
@@ -182,7 +197,6 @@ class CarregarOperadoras:
                 on_bad_lines='skip'
             )
         elif extensao in ['xlsx', 'xls']:
-            from io import BytesIO
             return pd.read_excel(BytesIO(response.content))
         
         return None

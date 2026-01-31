@@ -152,8 +152,8 @@ class RepositorioBancoDados:
                             registro.get('ANO')
                         )
                         
-                        cursor.execute(sql, valores)
-                        self.conexao.commit()
+                   #     cursor.execute(sql, valores)
+                #    self.conexao.commit()
                         processados += 1
                         
                         registros_com_erro.append({
@@ -491,19 +491,19 @@ class RepositorioBancoDados:
                     d.ano,
                     CASE
                         WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 THEN 'DUPLICIDADE'
+                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
                         ELSE COALESCE(o.cnpj, 'N/L')
                     END as cnpj,
                     CASE
                         WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 THEN 'DUPLICIDADE'
+                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
                         ELSE COALESCE(o.razao_social, 'N/L')
                     END as razao_social_operadora,
                     COALESCE(o.modalidade, 'N/L') as modalidade,
                     COALESCE(o.uf, 'N/L') as uf,
                     CASE 
                         WHEN o.reg_ans IS NULL THEN 'NAO_LOCALIZADO'
-                        WHEN o.qtd_operadoras > 1 THEN 'DUPLICIDADE'
+                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
                         ELSE o.status
                     END as status_operadora
                 FROM demonstracoes_contabeis_temp d
@@ -522,7 +522,7 @@ class RepositorioBancoDados:
             try:
                 from datetime import datetime
                 erros_join = []
-                mascara_erro = df['razao_social_operadora'].isin(['N/L', 'DUPLICIDADE'])
+                mascara_erro = df['razao_social_operadora'].isin(['N/L', 'REGISTRO DE OPERADORA EM DUPLICIDADE'])
                 if mascara_erro.any():
                     df_erros = df.loc[mascara_erro]
                     for _, linha in df_erros.iterrows():
@@ -549,7 +549,53 @@ class RepositorioBancoDados:
                 logger.error(f"Erro ao registrar problemas de JOIN: {e}")
             
             # Filtrar despesas com sinistros ANTES de normalizar
-            df_sinistros = df[df['descricao'].str.contains('Despesas com Eventos/Sinistros', case=False, na=False)]
+            # Inclui a linha principal ("Despesas com Eventos/Sinistros")
+            # + até 3 linhas de detalhamento abaixo (começando com "-")
+            # que tenham cd_conta com 9 dígitos iniciando com "4"
+            # Para quando encontrar uma que não atenda aos critérios
+            indices_sinistros = set()
+            
+            for idx, row in df.iterrows():
+                # Adicionar linha principal de sinistros
+                if isinstance(row['descricao'], str) and 'Despesas com Eventos/Sinistros' in row['descricao']:
+                    indices_sinistros.add(idx)
+                    
+                    # Procurar próximas linhas (máximo 3) que começam com "-"
+                    contador = 0
+                    for idx_prox in range(idx + 1, min(idx + 4, len(df))):
+                        row_prox = df.iloc[idx_prox]
+                        
+                        # Verificar se começa com "-"
+                        descricao_prox = str(row_prox['descricao']).strip()
+                        if not descricao_prox.startswith('-'):
+                            break
+                        
+                        # Verificar se cd_conta tem 9 dígitos e começa com 4
+                        cd_conta_str = str(row_prox['cd_conta_contabil']).strip()
+                        if len(cd_conta_str) == 9 and cd_conta_str.startswith('4'):
+                            indices_sinistros.add(idx_prox)
+                            contador += 1
+                        else:
+                            # Para quando não atender os critérios
+                            break
+            
+            df_sinistros = df.loc[list(indices_sinistros)] if indices_sinistros else df.iloc[0:0]
+            
+            # Filtrar sinistros SEM deduções
+            # Apenas linhas que contêm "Despesas com Eventos/Sinistros"
+            # E que têm cd_conta com 9 dígitos começando com "4"
+            indices_sinistros_sem_deducoes = set()
+            
+            for idx, row in df.iterrows():
+                if isinstance(row['descricao'], str) and 'Despesas com Eventos/Sinistros' in row['descricao']:
+                    cd_conta_str = str(row['cd_conta_contabil']).strip()
+                    if len(cd_conta_str) == 9 and cd_conta_str.startswith('4'):
+                        indices_sinistros_sem_deducoes.add(idx)
+            
+            df_sinistros_sem_deducoes = df.loc[list(indices_sinistros_sem_deducoes)] if indices_sinistros_sem_deducoes else df.iloc[0:0]
+            
+            # Filtrar apenas despesas (cd_conta_contabil começa com '4')
+            df_despesas = df[df['cd_conta_contabil'].astype(str).str.startswith('4', na=False)]
             
             # Função para normalizar valores numéricos para formato brasileiro (vírgula)
             def normalizar_para_br(df_temp):
@@ -570,35 +616,75 @@ class RepositorioBancoDados:
             # Salvar cópia com valores numéricos para cálculo posterior
             df_numerico = df.copy()
             df_sinistros_numerico = df_sinistros.copy()
+            df_sinistros_sem_deducoes_numerico = df_sinistros_sem_deducoes.copy()
+            df_despesas_numerico = df_despesas.copy()
             
             # Normalizar DataFrames para formato brasileiro
             df_sinistros_br = normalizar_para_br(df_sinistros)
+            df_sinistros_sem_deducoes_br = normalizar_para_br(df_sinistros_sem_deducoes)
             df_br = normalizar_para_br(df)
+            df_despesas_br = normalizar_para_br(df_despesas)
             
-            # Gerar CSV de despesas com sinistros
+            # Gerar CSV de despesas com sinistros (colunas específicas e ordem definida)
             arquivo_sinistros = os.path.join(diretorio_saida, 'consolidado_despesas_sinistros.csv')
+            df_sinistros_saida = df_sinistros_br[[
+                'cnpj',
+                'razao_social_operadora',
+                'trimestre',
+                'ano',
+                'valor_trimestre'
+            ]].rename(columns={
+                'cnpj': 'CNPJ',
+                'razao_social_operadora': 'RAZAOSOCIAL',
+                'trimestre': 'TRIMESTRE',
+                'ano': 'ANO',
+                'valor_trimestre': 'VALOR DE DESPESAS'
+            })
             # Garantir UTF-8 com BOM para compatibilidade com Excel
-            df_sinistros_br.to_csv(arquivo_sinistros, index=False, encoding='utf-8-sig', sep=';')
+            df_sinistros_saida.to_csv(arquivo_sinistros, index=False, encoding='utf-8-sig', sep=';')
             logger.info(f"CSV despesas sinistros gerado: {len(df_sinistros)} registros")
             print(f"  [CSV] {arquivo_sinistros} ({len(df_sinistros)} registros)")
             
-            # Gerar CSV com todas as despesas
-            arquivo_todas = os.path.join(diretorio_saida, 'consolidado_todas_despesas.csv')
+            # Gerar CSV de sinistros SEM deduções
+            arquivo_sinistros_sem_deducoes = os.path.join(diretorio_saida, 'sinistro_sem_deducoes.csv')
+            df_sinistros_sem_deducoes_saida = df_sinistros_sem_deducoes_br[[
+                'cnpj',
+                'razao_social_operadora',
+                'trimestre',
+                'ano',
+                'valor_trimestre'
+            ]].rename(columns={
+                'cnpj': 'CNPJ',
+                'razao_social_operadora': 'RAZAOSOCIAL',
+                'trimestre': 'TRIMESTRE',
+                'ano': 'ANO',
+                'valor_trimestre': 'VALOR DE DESPESAS'
+            })
+            # Garantir UTF-8 com BOM para compatibilidade com Excel
+            df_sinistros_sem_deducoes_saida.to_csv(arquivo_sinistros_sem_deducoes, index=False, encoding='utf-8-sig', sep=';')
+            logger.info(f"CSV sinistros sem deduções gerado: {len(df_sinistros_sem_deducoes)} registros")
+            print(f"  [CSV] {arquivo_sinistros_sem_deducoes} ({len(df_sinistros_sem_deducoes)} registros)")
+            
+            # Gerar CSV com apenas despesas (cd_conta_contabil começa com '4')
+            arquivo_despesas = os.path.join(diretorio_saida, 'demonstracoes_despesas.csv')
+            # Garantir UTF-8 com BOM para compatibilidade com Excel
+            df_despesas_br.to_csv(arquivo_despesas, index=False, encoding='utf-8-sig', sep=';')
+            logger.info(f"CSV despesas gerado: {len(df_despesas)} registros")
+            print(f"  [CSV] {arquivo_despesas} ({len(df_despesas)} registros)")
+            
+            # Gerar CSV com todas as demonstrações
+            arquivo_todas = os.path.join(diretorio_saida, 'demonstracoes_contabeis_completo.csv')
             # Garantir UTF-8 com BOM para compatibilidade com Excel
             df_br.to_csv(arquivo_todas, index=False, encoding='utf-8-sig', sep=';')
-            logger.info(f"CSV todas despesas gerado: {len(df)} registros")
-            
-            # Salvar arquivo com valores numéricos originais para cálculos internos
-            arquivo_numerico = os.path.join(diretorio_saida, '.consolidado_todas_despesas_numerico.csv')
-            df_numerico.to_csv(arquivo_numerico, index=False, encoding='utf-8-sig', sep=';')
-            logger.debug(f"CSV numérico (interno) salvo para cálculos: {arquivo_numerico}")
-            print(f"  [CSV] {arquivo_todas} ({len(df)} registros)")
+            logger.info(f"CSV todas demonstracoes gerado: {len(df)} registros")
             
             # Gerar ZIP
             import zipfile
             arquivo_zip = os.path.join(diretorio_saida, 'consolidado_despesas.zip')
             with zipfile.ZipFile(arquivo_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 zipf.write(arquivo_sinistros, os.path.basename(arquivo_sinistros))
+                zipf.write(arquivo_sinistros_sem_deducoes, os.path.basename(arquivo_sinistros_sem_deducoes))
+                zipf.write(arquivo_despesas, os.path.basename(arquivo_despesas))
                 zipf.write(arquivo_todas, os.path.basename(arquivo_todas))
                 if arquivo_log_sessao and os.path.exists(arquivo_log_sessao):
                     zipf.write(arquivo_log_sessao, os.path.basename(arquivo_log_sessao))

@@ -14,11 +14,6 @@ class RepositorioArquivoLocal(RepositorioArquivo):
         for encoding in RepositorioArquivoLocal.ENCODINGS:
             try:
                 df = pd.read_csv(caminho, sep=sep, encoding=encoding, quotechar='"', on_bad_lines='skip', **kwargs)
-                # Se conseguiu ler, limpar caracteres problemáticos
-                for col in df.columns:
-                    if df[col].dtype == 'object':
-                        # Corrigir encoding quebrado (ex: SaÃºde -> Saúde)
-                        df[col] = df[col].apply(lambda x: x.encode('latin-1').decode('utf-8', errors='ignore') if isinstance(x, str) else x)
                 return df
             except:
                 continue

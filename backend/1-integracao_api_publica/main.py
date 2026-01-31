@@ -71,7 +71,7 @@ def principal():
     
     gerenciador_checkpoint.exibir_status()
     
-    print("\n1. Buscando últimos 3 trimestres...")
+  #  print("\n1. Buscando últimos 3 trimestres...")
     buscar_trimestres = BuscarUltimosTrimestres(repositorio_api, quantidade=3)
     trimestres = buscar_trimestres.executar()
     
@@ -84,17 +84,17 @@ def principal():
         print(f"  - {trimestre}")
 
     print("\n2. Baixando arquivos...")
-    baixar_arquivos = BaixarArquivosTrimestres(repositorio_api)
-    arquivos = baixar_arquivos.executar(trimestres)
+ #   baixar_arquivos = BaixarArquivosTrimestres(repositorio_api)
+ #   arquivos = baixar_arquivos.executar(trimestres)
     
-    print(f"\nTotal de arquivos baixados: {len(arquivos)}")
+ #   print(f"\nTotal de arquivos baixados: {len(arquivos)}")
     
-    if arquivos:
-        print("\n3. Carregando dados e gerando CSV...")
-        carregar_banco = CarregarDadosBanco(repositorio_arquivo, repositorio_banco)
-        resultado = carregar_banco.executar(trimestres, DIRETORIO_DOWNLOADS)
-        
-        print(f"\nTotal de registros processados: {resultado.get('registros', 0)}")
+ #   if arquivos:
+    print("\n3. Carregando dados e gerando CSV...")
+    carregar_banco = CarregarDadosBanco(repositorio_arquivo, repositorio_banco)
+    resultado = carregar_banco.executar(trimestres, DIRETORIO_DOWNLOADS)
+    
+    print(f"\nTotal de registros processados: {resultado.get('registros', 0)}")
     
     repositorio_api.fechar()
     
