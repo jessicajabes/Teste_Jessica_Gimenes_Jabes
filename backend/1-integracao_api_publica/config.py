@@ -8,10 +8,10 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://jessica:1234@db:55432/int
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 # Diretórios de trabalho (sincronizados via volume Docker)
-DIRETORIO_DOWNLOADS = os.getenv('DIRETORIO_DOWNLOADS', '/app/downloads/Integracao')
-DIRETORIO_ZIPS = os.path.join(DIRETORIO_DOWNLOADS, 'zips')
-DIRETORIO_EXTRAIDO = os.path.join(DIRETORIO_DOWNLOADS, 'extraido')
-DIRETORIO_CONSOLIDADO = os.path.join(DIRETORIO_DOWNLOADS, 'consolidados')
+DIRETORIO_DOWNLOADS = os.getenv('DIRETORIO_DOWNLOADS', '/app/downloads')
+DIRETORIO_ZIPS = os.path.join(DIRETORIO_DOWNLOADS, 'zips_trimestres')
+DIRETORIO_EXTRAIDO = os.path.join(DIRETORIO_DOWNLOADS, 'trimestre_extraido')
+DIRETORIO_CONSOLIDADO = os.path.join(DIRETORIO_DOWNLOADS, '1-trimestres_consolidados')
 DIRETORIO_ERROS = os.path.join(DIRETORIO_DOWNLOADS, 'erros')
 DIRETORIO_CHECKPOINTS = os.path.join(DIRETORIO_DOWNLOADS, 'checkpoints')
 DIRETORIO_OPERADORAS = os.path.join(DIRETORIO_DOWNLOADS, 'operadoras')
