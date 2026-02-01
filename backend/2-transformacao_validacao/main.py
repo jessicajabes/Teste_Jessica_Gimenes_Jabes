@@ -1,18 +1,17 @@
-"""
-Main - Transformação e Validação de Dados
+"""Ponto de entrada da aplicação de Transformação e Validação de Dados.
 
 Processa os arquivos consolidados (a partir do ZIP),
 realiza validações, enriquece com dados de operadoras
 e gera agregações.
 """
 
-from pipelines.transformacao_pipeline import TransformacaoPipeline
+from casos_uso.gerar_despesas_agregadas import GerarDespesasAgregadas
 
 
 def principal():
-    """Função principal de execução"""
-    pipeline = TransformacaoPipeline()
-    pipeline.run()
+    """Ponto de entrada da aplicação."""
+    processador = GerarDespesasAgregadas()
+    processador.executar()
 
 
 if __name__ == '__main__':

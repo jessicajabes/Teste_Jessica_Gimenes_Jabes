@@ -15,7 +15,7 @@ Orquestra todo o fluxo de integração de dados da API ANS:
 import os
 from typing import Dict
 
-from config import DIRETORIO_DOWNLOADS
+from config import DIRETORIO_DOWNLOADS, DIRETORIO_CONSOLIDADO
 from casos_uso.buscar_trimestres import BuscarUltimosTrimestres
 from casos_uso.baixar_arquivos import BaixarArquivosTrimestres
 from casos_uso.carregar_dados_banco import CarregarDadosBanco
@@ -98,35 +98,35 @@ class GerarArquivosConsolidados:
         carregar_dados_banco.limpar_tabela_operadoras()
         carregar_dados_banco.carregar_operadoras()
 
-        # 3.3 Limpar tabela de demonstrações contábeis
-        carregar_dados_banco.limpar_tabela_demonstracoes()
+        # # 3.3 Limpar tabela de demonstrações contábeis
+        # carregar_dados_banco.limpar_tabela_demonstracoes()
 
-        # 3.4 Resetar checkpoint
-        carregar_dados_banco.resetar_checkpoint()
+        # # 3.4 Resetar checkpoint
+        # carregar_dados_banco.resetar_checkpoint()
 
-        # 3.5 Extrair ZIPs
-        repo_arquivo = RepositorioArquivoLocal()
-        repo_arquivo.extrair_zips(DIRETORIO_DOWNLOADS)
+        # # 3.5 Extrair ZIPs
+        # repo_arquivo = RepositorioArquivoLocal()
+        # repo_arquivo.extrair_zips(DIRETORIO_DOWNLOADS)
 
-        # 3.6 Obter arquivos de trimestres baixados
-        arquivos_filtrados = carregar_dados_banco.obter_arquivos_filtrados(DIRETORIO_DOWNLOADS)
+        # # 3.6 Obter arquivos de trimestres baixados
+        # arquivos_filtrados = carregar_dados_banco.obter_arquivos_filtrados(DIRETORIO_DOWNLOADS)
 
-        # 3.7 Processar arquivos - importa dados dos csv para o banco de dados
-        total_registros, total_erros, valor_inicial = carregar_dados_banco.processar_arquivos(
-            arquivos=arquivos_filtrados,
-            valor_total_inicial=0.0,
-        )
-
+        # # 3.7 Processar arquivos - importa dados dos csv para o banco de dados
+        # total_registros, total_erros, valor_inicial = carregar_dados_banco.processar_arquivos(
+        #     arquivos=arquivos_filtrados,
+        #     valor_total_inicial=0.0,
+        # )
+        total_registros, total_erros, valor_inicial = 0, 0, 0
         # 3.8 Gerar consolidados - busca os dados do banco de dados com join e gera os arquivos consolidados
-        diretorio_consolidados = os.path.join(DIRETORIO_DOWNLOADS, 'consolidados')
+        diretorio_consolidados = os.path.join(DIRETORIO_DOWNLOADS, DIRETORIO_CONSOLIDADO)
         valor_final = carregar_dados_banco.gerar_consolidados(diretorio_consolidados)
 
         # 3.9 Finalizar e desconectar
-        carregar_dados_banco.gerenciador_checkpoint.marcar_processamento_completo(
-            total_registros,
-            total_erros
-        )
-        carregar_dados_banco.repo_banco.desconectar()
+        # carregar_dados_banco.gerenciador_checkpoint.marcar_processamento_completo(
+        #     total_registros,
+        #     total_erros
+        # )
+        # carregar_dados_banco.repo_banco.desconectar()
 
         # 3.10 Exibir resumo
         CarregarDadosBanco.exibir_resumo(

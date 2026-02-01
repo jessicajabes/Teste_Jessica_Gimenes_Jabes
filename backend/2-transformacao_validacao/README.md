@@ -5,29 +5,34 @@ Módulo responsável por ler, transformar, validar e importar os arquivos CSV ge
 ## Funcionalidades
 
 - Leitura dos arquivos CSV consolidados
-- Validação de dados (valores nulos, duplicados, campos essenciais)
-- Análise estatística dos dados
-- Relatórios de qualidade dos dados
-- **Importação dos dados no banco de dados PostgreSQL**
+- Validação de dados (CNPJ, valores, campos essenciais)
+- Enriquecimento com dados de operadoras
+- Agregação de despesas por operadora e UF
+- Geração de relatórios agregados
 
 ## Arquivos de Entrada
 
-Os arquivos são lidos de `./backend/downloads/Integracao/`:
-- `consolidado_despesas_sinistros.csv`
-- `consolidado_todas_despesas.csv`
+Os arquivos são lidos do ZIP consolidado em `./backend/downloads/1-trimestres_consolidados/`:
+- `sinistro_sem_deducoes.csv`
+- `consolidado_despesas_sinistros_c_deducoes.csv`
 
 ## Estrutura do Módulo
 
 ### domain/
-- **entidades.py**: Definições de DemonstracaoContabil e ResultadoImportacao
-- **repositorios.py**: Interfaces abstratas para CSV e Banco
+- **entidades.py**: Definições de entidades do domínio
+- **repositorios.py**: Interfaces abstratas
+- **servicos/**: Serviços de domínio
+  - **validador_cnpj.py**: Validação de CNPJ
+  - **enriquecedor_operadoras.py**: Enriquecimento com dados de operadoras
+  - **normalizador_dados.py**: Normalização de dados
 
 ### infraestrutura/
 - **repositorio_csv.py**: Implementação para leitura de arquivos CSV
 - **repositorio_banco_dados.py**: Implementação para acesso ao banco PostgreSQL
+- **logger.py**: Configuração de logging
 
 ### casos_uso/
-- **importar_dados_consolidados.py**: Caso de uso para importação dos dados
+- **gerar_despesas_agregadas.py**: Processamento, validação e agregação de despesas
 
 ## Banco de Dados
 

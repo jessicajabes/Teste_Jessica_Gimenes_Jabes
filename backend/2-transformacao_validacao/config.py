@@ -13,4 +13,4 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 # Diretórios padrão (sincronizados via volume Docker)
 DIRETORIO_INTEGRACAO = os.getenv('DIRETORIO_INTEGRACAO', '/app/downloads')
 DIRETORIO_CONSOLIDADOS = os.path.join(DIRETORIO_INTEGRACAO, '1-trimestres_consolidados')
-DIRETORIO_TRANSFORMACAO = os.path.join(DIRETORIO_INTEGRACAO, '2-validado_enriquecio')
+DIRETORIO_TRANSFORMACAO = os.path.join(DIRETORIO_INTEGRACAO, '2-tranformacao_validacao')
