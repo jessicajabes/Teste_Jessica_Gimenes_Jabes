@@ -22,8 +22,8 @@ class RepositorioArquivoLocal(RepositorioArquivo):
         return pd.read_csv(caminho, sep=sep, encoding='utf-8', quotechar='"', on_bad_lines='skip', **kwargs)
     def extrair_zips(self, diretorio: str) -> List[str]:
         base_dir = diretorio or os.path.dirname(DIRETORIO_ZIPS)
-        diretorio_zips = os.path.join(base_dir, "zips")
-        diretorio_extraido = os.path.join(base_dir, "extraido")
+        diretorio_zips = DIRETORIO_ZIPS
+        diretorio_extraido = DIRETORIO_EXTRAIDO
         os.makedirs(diretorio_zips, exist_ok=True)
         os.makedirs(diretorio_extraido, exist_ok=True)
         
@@ -48,7 +48,7 @@ class RepositorioArquivoLocal(RepositorioArquivo):
     
     def encontrar_arquivos_dados(self, diretorio: str) -> dict:
         base_dir = diretorio or os.path.dirname(DIRETORIO_EXTRAIDO)
-        diretorio_extraido = os.path.join(base_dir, "extraido")
+        diretorio_extraido = DIRETORIO_EXTRAIDO
         arquivos_encontrados = {'csv': [], 'txt': [], 'xlsx': []}
         
         if not os.path.exists(diretorio_extraido):

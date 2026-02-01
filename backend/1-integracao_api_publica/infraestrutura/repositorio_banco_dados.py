@@ -3,6 +3,7 @@ import pandas as pd
 from typing import List, Dict
 from config import DIRETORIO_ERROS
 from infraestrutura.logger import get_logger
+from domain.servicos import ProcessadorArquivos, GeradorConsolidados, ValidadorNormalizador
 
 logger = get_logger('RepositorioBancoDados')
 
@@ -41,7 +42,7 @@ class RepositorioBancoDados:
             registros_invalidos = []
             
             for idx, registro in enumerate(dados):
-                validacao = self._validar_campos_obrigatorios(registro)
+                validacao = ValidadorNormalizador.validar_campos_obrigatorios(registro)
                 
                 if validacao['tem_erro']:
                     registros_invalidos.append((idx, registro, validacao))
@@ -60,12 +61,12 @@ class RepositorioBancoDados:
                         f"cd_conta={registro.get('CD_CONTA_CONTABIL')}"
                     )
                     
-                    vl_saldo_inicial = self._normalizar_numero(
+                    vl_saldo_inicial = ValidadorNormalizador.normalizar_numero(
                         registro.get('VL_SALDO_INICIAL'),
                         campo='VL_SALDO_INICIAL',
                         contexto=contexto_base
                     )
-                    vl_saldo_final = self._normalizar_numero(
+                    vl_saldo_final = ValidadorNormalizador.normalizar_numero(
                         registro.get('VL_SALDO_FINAL'),
                         campo='VL_SALDO_FINAL',
                         contexto=contexto_base
@@ -119,19 +120,19 @@ class RepositorioBancoDados:
                     """
                     
                     try:
-                        reg_ans = self._limpar_valor(registro.get('REG_ANS')) or None
-                        descricao = self._limpar_valor(registro.get('DESCRICAO')) or None
+                        reg_ans = ValidadorNormalizador.limpar_valor(registro.get('REG_ANS')) or None
+                        descricao = ValidadorNormalizador.limpar_valor(registro.get('DESCRICAO')) or None
                         
                         contexto_base = (
                             f"arquivo={arquivo_origem or 'desconhecido'}, "
                             f"linha={idx + 1}"
                         )
                         
-                        vl_saldo_inicial = self._normalizar_numero(
+                        vl_saldo_inicial = ValidadorNormalizador.normalizar_numero(
                             registro.get('VL_SALDO_INICIAL'),
                             contexto=contexto_base
                         )
-                        vl_saldo_final = self._normalizar_numero(
+                        vl_saldo_final = ValidadorNormalizador.normalizar_numero(
                             registro.get('VL_SALDO_FINAL'),
                             contexto=contexto_base
                         )
@@ -220,63 +221,6 @@ class RepositorioBancoDados:
             print(f"      Erro geral na inserção: {e}")
             return 0
 
-    @staticmethod
-    def _normalizar_numero(valor, campo: str = None, contexto: str = None):
-        if valor is None:
-            return None
-        try:
-            if isinstance(valor, str):
-                valor_limpo = valor.strip()
-                valor_transformado = valor_limpo.replace('.', '').replace(',', '.')
-                numero = float(valor_transformado)
-                return numero
-            return float(valor)
-        except (ValueError, TypeError) as e:
-            # Log apenas quando houver erro na conversão
-            detalhes = f"campo={campo}" if campo else "campo=desconhecido"
-            if contexto:
-                detalhes = f"{detalhes}, {contexto}"
-            logger.warning(f"Erro na normalização numérica ({detalhes}): valor='{valor}' - {str(e)}")
-            return None
-    
-    @staticmethod
-    def _limpar_valor(valor):
-        """Remove espaços em branco e retorna None se vazio"""
-        if valor is None:
-            return None
-        
-        valor_str = str(valor).strip()
-        return valor_str if valor_str else None
-    
-    @staticmethod
-    def _validar_campos_obrigatorios(registro: Dict) -> Dict:
-        """Valida se os campos obrigatórios estão preenchidos
-        
-        Retorna dict com:
-        - tem_erro: bool indicando se há erro
-        - mensagem: str descrevendo os campos vazios
-        """
-        campos_vazios = []
-        
-        reg_ans = registro.get('REG_ANS')
-        if not reg_ans or not str(reg_ans).strip():
-            campos_vazios.append('CNPJ/REG_ANS')
-        
-        descricao = registro.get('DESCRICAO')
-        if not descricao or not str(descricao).strip():
-            campos_vazios.append('Razão Social/DESCRICAO')
-        
-        if campos_vazios:
-            return {
-                'tem_erro': True,
-                'mensagem': f"Campos vazios: {', '.join(campos_vazios)}"
-            }
-        
-        return {
-            'tem_erro': False,
-            'mensagem': ''
-        }
-    
     def _gerar_csv_erros(self, registros_com_erro: List[Dict]):
         try:
             import pandas as pd
@@ -620,44 +564,17 @@ class RepositorioBancoDados:
             # Filtrar apenas despesas (cd_conta_contabil começa com '4')
             df_despesas = df[df['cd_conta_contabil'].astype(str).str.startswith('4', na=False)]
 
-            # Garantir a mesma ordenação do SQL em todos os arquivos gerados
-            colunas_ordem = ['ano', 'trimestre', 'reg_ans', 'cd_conta_contabil']
-            if not df_sinistros.empty:
-                df_sinistros = df_sinistros.sort_values(colunas_ordem, kind='mergesort')
-            if not df_sinistros_sem_deducoes.empty:
-                df_sinistros_sem_deducoes = df_sinistros_sem_deducoes.sort_values(colunas_ordem, kind='mergesort')
-            if not df_despesas.empty:
-                df_despesas = df_despesas.sort_values(colunas_ordem, kind='mergesort')
-            if not df.empty:
-                df = df.sort_values(colunas_ordem, kind='mergesort')
+            # Aplicar ordenação padrão usando serviço de domínio
+            df_sinistros = GeradorConsolidados.aplicar_ordenacao_padrao(df_sinistros)
+            df_sinistros_sem_deducoes = GeradorConsolidados.aplicar_ordenacao_padrao(df_sinistros_sem_deducoes)
+            df_despesas = GeradorConsolidados.aplicar_ordenacao_padrao(df_despesas)
+            df = GeradorConsolidados.aplicar_ordenacao_padrao(df)
             
-            # Função para normalizar valores numéricos para formato brasileiro (vírgula)
-            def normalizar_para_br(df_temp):
-                """Converte valores numéricos para formato brasileiro (vírgula como decimal)"""
-                df_copy = df_temp.copy()
-                colunas_numericas = ['vl_saldo_inicial', 'vl_saldo_final', 'valor_trimestre']
-                
-                for col in colunas_numericas:
-                    if col in df_copy.columns:
-                        # Converter para string com 2 casas decimais e substituir ponto por vírgula
-                        df_copy[col] = df_copy[col].apply(
-                            lambda x: f"{float(x):,.2f}".replace(',', '#').replace('.', ',').replace('#', '.') 
-                            if pd.notna(x) else ''
-                        )
-                
-                return df_copy
-            
-            # Salvar cópia com valores numéricos para cálculo posterior
-            # df_numerico = df.copy()
-            # df_sinistros_numerico = df_sinistros.copy()
-            # df_sinistros_sem_deducoes_numerico = df_sinistros_sem_deducoes.copy()
-            # df_despesas_numerico = df_despesas.copy()
-            
-            # Normalizar DataFrames para formato brasileiro
-            df_sinistros_br = normalizar_para_br(df_sinistros)
-            df_sinistros_sem_deducoes_br = normalizar_para_br(df_sinistros_sem_deducoes)
-            df_br = normalizar_para_br(df)
-            df_despesas_br = normalizar_para_br(df_despesas)
+            # Normalizar DataFrames para formato brasileiro usando serviço de domínio
+            df_sinistros_br = GeradorConsolidados.normalizar_para_br(df_sinistros)
+            df_sinistros_sem_deducoes_br = GeradorConsolidados.normalizar_para_br(df_sinistros_sem_deducoes)
+            df_br = GeradorConsolidados.normalizar_para_br(df)
+            df_despesas_br = GeradorConsolidados.normalizar_para_br(df_despesas)
 
             # Gerar CSVs em diretório temporário (serão adicionados ao ZIP apenas)
             temp_dir = os.path.join(diretorio_saida, '_tmp_consolidados')
@@ -701,8 +618,8 @@ class RepositorioBancoDados:
                 'valor_trimestre': 'sum'
             })
             
-            # Agora normalizar para formato brasileiro
-            df_sinistros_sem_deducoes_agrupado_br = normalizar_para_br(df_sinistros_sem_deducoes_agrupado)
+            # Agora normalizar para formato brasileiro usando serviço de domínio
+            df_sinistros_sem_deducoes_agrupado_br = GeradorConsolidados.normalizar_para_br(df_sinistros_sem_deducoes_agrupado)
             
             df_sinistros_sem_deducoes_saida = df_sinistros_sem_deducoes_agrupado_br[[
                 'reg_ans',

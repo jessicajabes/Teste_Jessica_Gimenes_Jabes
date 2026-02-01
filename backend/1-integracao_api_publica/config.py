@@ -9,8 +9,8 @@ DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 # Diretórios de trabalho (sincronizados via volume Docker)
 DIRETORIO_DOWNLOADS = os.getenv('DIRETORIO_DOWNLOADS', '/app/downloads')
-DIRETORIO_ZIPS = os.path.join(DIRETORIO_DOWNLOADS, 'zips_trimestres')
-DIRETORIO_EXTRAIDO = os.path.join(DIRETORIO_DOWNLOADS, 'trimestre_extraido')
+DIRETORIO_ZIPS = os.path.join(DIRETORIO_DOWNLOADS, 'arquivos_trimestres')
+DIRETORIO_EXTRAIDO = os.path.join(DIRETORIO_DOWNLOADS, 'arquivos_zip_trimestre_extraido')
 DIRETORIO_CONSOLIDADO = os.path.join(DIRETORIO_DOWNLOADS, '1-trimestres_consolidados')
 DIRETORIO_ERROS = os.path.join(DIRETORIO_DOWNLOADS, 'erros')
 DIRETORIO_CHECKPOINTS = os.path.join(DIRETORIO_DOWNLOADS, 'checkpoints')
