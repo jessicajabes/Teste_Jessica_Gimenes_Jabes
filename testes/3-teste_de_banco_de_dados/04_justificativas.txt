@@ -1,0 +1,50 @@
+3.2 Normalização
+
+Escolha: Opção B (tabelas normalizadas).
+Motivos:
+- Volume: despesas consolidadas tende a crescer muito, enquanto operadoras é pequeno e estável. Separar reduz redundância.
+- Atualizações: cadastro de operadoras muda pouco; despesas são carregadas em lote. Normalização evita reescrever dados repetidos.
+- Queries analíticas: o fato (despesas_consolidadas) fica limpo para agregações e joins eficientes com dimensão (operadoras).
+
+Chaves e índices:
+- PK em operadoras.reg_ans e despesas_consolidadas.id.
+- Índices em reg_ans, uf e (ano, trimestre) aceleram filtros comuns e agregações.
+
+3.2 Tipos de dados
+
+Valores monetários: NUMERIC(18,2).
+- Precisão garantida, evita erros de ponto flutuante de FLOAT.
+- INTEGER (centavos) é eficiente, mas exige conversões e complica leitura humana.
+
+Datas:
+- Ano e trimestre em SMALLINT. Evita parsing complexo e é suficiente para consultas por período.
+- TIMESTAMP usado apenas para data de carga.
+
+3.3 Importação e tratamento de inconsistências
+
+Estratégia:
+- Uso de staging (stg_*) para importar como texto e validar antes de inserir nas tabelas finais.
+- Registros inválidos são enviados para rejeitados_despesas com motivo.
+
+Tratamento adotado:
+- NULL em campos obrigatórios: rejeitar e registrar motivo.
+- Strings em campos numéricos: tentar limpeza com regex; se não virar número válido, rejeitar.
+- Datas inconsistentes: ano e trimestre são validados como números; inválidos são rejeitados.
+
+Motivos:
+- Preserva integridade do fato analítico.
+- Evita contaminação de métricas por dados corrompidos.
+
+3.4 Queries analíticas
+
+Query 1:
+- Usa primeiro e último trimestre disponível por operadora, mesmo que não haja dados em todos os trimestres.
+- Justificativa: maximiza o uso de dados disponíveis sem excluir operadoras incompletas.
+
+Query 2:
+- Soma total por UF e média por operadora na UF.
+- Justificativa: mostra concentração total e intensidade média por operadora.
+
+Query 3:
+- Compara cada trimestre com a média geral de todos os trimestres.
+- Conta operadoras com pelo menos 2 trimestres acima da média.

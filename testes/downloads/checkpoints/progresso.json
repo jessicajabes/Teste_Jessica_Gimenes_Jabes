@@ -1,0 +1,311 @@
+{
+  "arquivo_atual": "1T2025.csv",
+  "registro_atual": 337400,
+  "status": "em_progresso",
+  "registros_processados": 65258,
+  "registros_com_erro": 0,
+  "trimestres_processados": [],
+  "historico": [
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 332500,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.277565"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 332600,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.296519"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 332700,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.325174"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 332800,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.345461"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 332900,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.359702"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333000,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.380645"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333100,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.406747"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333200,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.443841"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333300,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.463628"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333400,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.480638"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333500,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.498336"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333600,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.514334"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333700,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.536757"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333800,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.561604"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 333900,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.579797"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334000,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.597185"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334100,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.613709"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334200,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.628544"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334300,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.643113"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334400,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.666979"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334500,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.691731"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334600,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.720087"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334700,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.738018"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334800,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.762015"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 334900,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.777791"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335000,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.793157"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335100,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.808376"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335200,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.834560"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335300,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.854323"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335400,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.883570"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335500,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.907931"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335600,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.941984"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335700,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.968689"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335800,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:30.995354"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 335900,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.013313"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336000,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.037405"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336100,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.056249"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336200,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.071976"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336300,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.087233"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336400,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.108238"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336500,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.139990"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336600,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.166847"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336700,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.188915"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336800,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.225002"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 336900,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.252025"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 337000,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.269526"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 337100,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.284844"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 337200,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.301750"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 337300,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.317915"
+    },
+    {
+      "arquivo": "1T2025.csv",
+      "registro": 337400,
+      "status": "em_progresso",
+      "timestamp": "2026-02-02T02:32:31.345274"
+    }
+  ],
+  "timestamp_atualizacao": "2026-02-02T02:32:31.345263"
+}

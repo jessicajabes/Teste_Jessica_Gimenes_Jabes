@@ -2,7 +2,7 @@ services:
 
   integracao_api_publica:
     build:
-      context: ./backend
+      context: ./testes
       dockerfile: Dockerfile
     container_name: intuitive-care-integracao-api
     stdin_open: true
@@ -11,13 +11,51 @@ services:
       API_BASE_URL: ${API_BASE_URL}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
     volumes:
-      - ./backend:/app
-      - ./backend/downloads:/app/downloads
-      - ./backend/checkpoints:/app/checkpoints
+      - ./testes:/app
+      - ./testes/downloads:/app/downloads
+      - ./testes/checkpoints:/app/checkpoints
     depends_on:
       postgres:
         condition: service_healthy
     restart: "no"
+
+  # Teste 4 - Backend API
+  api_operadoras:
+    build:
+      context: ./testes/4-teste_de_api_e_interface_web/backend
+      dockerfile: Dockerfile
+    container_name: intuitive-care-api-operadoras
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      STATS_CACHE_TTL: 600
+      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - .testes/4-teste_de_api_e_interface_web/backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Teste 4 - Frontend Vue.js
+  frontend_operadoras:
+    build:
+      context: .testes/4-teste_de_api_e_interface_web/frontend
+      dockerfile: Dockerfile
+    container_name: intuitive-care-frontend-operadoras
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - .testes/4-teste_de_api_e_interface_web/frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api_operadoras
+    restart: unless-stopped
 
   postgres:
     image: postgres:15-alpine

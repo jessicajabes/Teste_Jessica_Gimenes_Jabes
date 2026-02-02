@@ -1,206 +1,132 @@
-# Intuitive Care — Consolidação de Demonstrações Contábeis da ANS
+## Como executar
 
-## Introdução
+Pré-requisitos: Docker e Docker Compose.
 
-**Exercício 1 — Teste de Integração com API Pública** 
+**Importante:** Todos os comandos devem ser executados a partir da raiz do projeto (`Teste_Jessica_Jabes/`).
 
-O objetivo inicial do exercício era **baixar automaticamente os documentos das 3 últimas demonstrações contábeis disponibilizadas pela API pública da ANS**, extrair os arquivos e **processar apenas aqueles que contivessem informações relacionadas a *“DESPESAS COM EVENTOS/SINISTROS”***.
+### Executar todos os exercícios de uma vez
 
-Durante o desenvolvimento, foram identificados **pontos de atenção e cenários potenciais de inconsistência** nos dados de origem que exigiram **decisões técnicas conscientes e preventivas**, principalmente relacionadas a:
-
-* Ausência de CNPJ e Razão Social nos arquivos de demonstrações contábeis, o que exigiu a realização de JOIN com outra base já no primeiro exercício
-* Volume e diversidade de arquivos disponibilizados pela API
-* Diferenças e variações de dados entre trimestres distintos
-* Necessidade de rastreabilidade, auditoria e recuperação em caso de falha
-
-Este README documenta as decisões tomadas, as dificuldades consideradas e **como cada etapa do processamento foi desenhada para lidar com esses cenários**, mantendo uma abordagem objetiva e sem excesso de abstrações.
-
----
-
-## Visão Geral da Solução
-
-O sistema:
-
-* É totalmente executado em **containers Docker**
-* Integra-se à **API pública da ANS**
-* Processa automaticamente arquivos nos formatos **CSV, XLSX e TXT**
-* Normaliza, valida e consolida dados contábeis
-* Persiste dados em **PostgreSQL** para otimizar joins e auditoria
-* Gera arquivos CSV consolidados e logs detalhados por execução
-
----
-
-## Como Executar o Projeto
-
-### Pré-requisitos
-
-* Docker 20.10+
-* Docker Compose 1.29+
-* Windows, Linux ou macOS
-
----
-
-### Passo 1 — Subir os Containers
-
-```bash
-docker-compose up -d
+```powershell
+./executar_interativo.ps1
 ```
 
-Isso irá iniciar:
+### Executar um exercício por vez
 
-* PostgreSQL
-* Container da aplicação de integração
-
-Verifique se estão ativos:
-
-```bash
-docker-compose ps
+```powershell
+./executar_por_teste.ps1
 ```
 
----
+### Executar somente o Teste 3 (import + analytics)
 
-### Passo 2 — Executar o Script Principal
-
-```bash
-docker exec -i intuitive-care-integracao-api \
-python /app/1-integracao_api_publica/main.py
+```powershell
+./backend/3-teste_de_banco_de_dados/import_csvs.ps1
 ```
 
-Tempo médio de execução: **5 a 15 minutos**, dependendo da conexão e do ambiente.
+Saídas principais:
+- Teste 1: `backend/downloads/1-trimestres_consolidados/consolidado_despesas.zip`
+- Teste 2: `backend/downloads/2-tranformacao_validacao/Teste_Jessica_Jabes.zip`
+- Teste 3: tabelas no PostgreSQL (`operadoras`, `consolidados_*`, `despesas_agregadas*`) e analytics no console
+- Teste 4: API em http://localhost:8000 e frontend em http://localhost:5173
 
 ---
 
-### Passo 3 — Verificar Resultados
+## Visão geral
 
-Os arquivos gerados estarão em:
+Projeto completo do teste técnico com 4 etapas:
+1) Integração com API pública da ANS
+2) Transformação/validação e agregação
+3) Banco de dados + queries analíticas
+4) API + interface web
+
+Tecnologias: Python, PostgreSQL 15, Docker/Compose, FastAPI, Vue 3, Chart.js.
+
+---
+
+## Exercício 1 — Integração com API Pública
+
+O que faz:
+- Baixa os 3 últimos trimestres da ANS
+- Extrai ZIPs e filtra despesas de eventos/sinistros
+- Normaliza formatos CSV/TXT/XLSX
+- Gera `consolidado_despesas.zip`
+
+Trade-off técnico (memória vs incremental):
+- Escolha: processamento incremental com PostgreSQL.
+- Motivo: menor uso de memória, retomada após falhas e melhor auditoria.
+
+Tratamento de inconsistências:
+- Razão social/CNPJ ausentes: JOIN com cadastro de operadoras.
+- Valores zerados/negativos: mantidos para rastreabilidade.
+- Trimestres inconsistentes: normalizados no pipeline.
+
+---
+
+## Exercício 2 — Transformação e Validação
+
+O que faz:
+- Valida CNPJ, valores positivos e razão social
+- Enriquecimento com cadastro de operadoras
+- Agrega por razão social/UF
+- Gera `despesas_agregadas.csv` e `despesas_agregadas_c_deducoes.csv` no ZIP final
+
+Trade-offs:
+- CNPJs inválidos: registros descartados (evita poluir agregações).
+- Join com cadastro: usando banco (mais confiável para volume e consistência).
+- Ordenação: feita em SQL para evitar custo em memória.
+
+---
+
+## Exercício 3 — Banco de Dados e Analytics
+
+DDL e import:
+- Tabelas normalizadas: `operadoras`, `consolidados_despesas`, `consolidados_despesas_c_deducoes`,
+  `despesas_agregadas`, `despesas_agregadas_c_deducoes`.
+- Tipos: `NUMERIC(18,2)` para valores e `INTEGER` para ano/trimestre.
+
+Trade-offs:
+- Normalização escolhida: reduz redundância, facilita manutenção e analytics.
+- Tipos numéricos: `NUMERIC` para precisão de valores monetários.
+
+Queries analíticas (03_analytics.sql):
+- Top 5 crescimento percentual (primeiro vs último trimestre disponível)
+- Top 5 UF por total e média por operadora
+- Operadoras acima da média em 2+ trimestres (CTEs pela legibilidade)
+
+---
+
+## Exercício 4 — API e Interface Web
+
+Backend:
+- FastAPI com rotas: `/api/operadoras`, `/api/operadoras/{cnpj}`,
+  `/api/operadoras/{cnpj}/despesas`, `/api/estatisticas`
+- Paginação offset-based
+- Cache para estatísticas (TTL)
+
+Frontend:
+- Vue 3 com busca, paginação, gráfico por UF e detalhes da operadora
+
+Trade-offs:
+- Framework: FastAPI (performance + validação + OpenAPI)
+- Paginação: offset (simplicidade e UX)
+- Cache: TTL em memória (equilíbrio entre custo e consistência)
+- Busca: server-side (volume e consistência)
+- Estado: composables (simplicidade)
+
+---
+
+## Estrutura principal
 
 ```
-backend/1-integracao_api_publica/consolidados/
+backend/
+  1-integracao_api_publica/
+  2-transformacao_validacao/
+  3-teste_de_banco_de_dados/
+  downloads/
+  checkpoints/
+4-teste_de_api_e_interface_web/
+  backend/
+  frontend/
 ```
-
-Conteúdo esperado:
-
-* Arquivos CSV consolidados
-* Arquivo ZIP contendo os CSVs e o log da sessão
-
----
-
-## Tecnologias Utilizadas
-
-* Python 3.9+
-* Pandas
-* SQLAlchemy
-* PostgreSQL 15
-* Docker / Docker Compose
-* API Pública da ANS
-
----
-
-## Exercício 1 — Integração com API Pública da ANS
-
-### Objetivo Original
-
-* Baixar automaticamente os arquivos das **3 últimas demonstrações contábeis** disponíveis
-* Extrair os arquivos
-* Processar apenas aqueles que **contivessem “DESPESAS COM EVENTOS/SINISTROS”**
-
-### Implementação
-
-* Consulta automática à API para identificar os últimos trimestres
-* Download dos arquivos ZIP
-* Extração automática dos conteúdos
-* Validação prévia para verificar se o arquivo contém o dado solicitado antes do processamento
-* Suporte aos formatos: **CSV, XLSX e TXT**
-
----
-
-## Decisão Técnica: Processamento em Memória vs Incremental
-
-Durante o desenvolvimento, foi necessário decidir entre:
-
-### Opção A — Processar tudo em memória
-
-* Join via Pandas
-* Maior velocidade inicial
-
-**Limitações:**
-
-* Alto consumo de memória
-* Falha implica reiniciar todo o processo
-* Pouca rastreabilidade
-
-### Opção B — Processamento Incremental (Escolhida)
-
-* Importação gradual para PostgreSQL
-* Join via SQL
-
-**Vantagens:**
-
-* Consumo de memória constante
-* Possibilidade de retomar após falhas
-* Melhor auditoria
-* Mais escalável
-
-**Decisão:** foi adotado o **processamento incremental com banco de dados**, considerando o volume de dados e a necessidade de confiabilidade.
-
----
-
-## Consolidação dos Dados
-
-### Problema Encontrado
-
-Os arquivos de demonstrações contábeis **não possuíam CNPJ nem Razão Social**, apenas o `registro_da_operadora`.
-
-### Solução
-
-* Download adicional da API:
-
-  * Operadoras ativas
-  * Operadoras inativas
-* Ambas foram carregadas no banco, pois a operadora pode ter se tornado inativa entre trimestres
-* Consolidação realizada via **LEFT JOIN** utilizando `registro_da_operadora`
-
----
-
-## Arquivos de Saída
-
-Foram gerados **dois arquivos CSV**, visando atender ao enunciado e também permitir auditoria completa:
-
-### 1. CSV com Todos os Dados Processados
-
-* Contém todos os registros válidos encontrados nos arquivos
-* Útil para análise global e conferência
-
-### 2. CSV Apenas com Despesas de Eventos/Sinistros
-
-* Contém apenas registros cujo descritivo do plano de contas possui:
-
-  * `DESPESAS COM EVENTOS/SINISTROS`
-* Inclui também valores de dedução (quando existentes)
-
-Ambos são compactados em um único arquivo ZIP junto com o log da execução.
-
----
-
-## Checkpoint e Recuperação
-
-Foi implementado um sistema de **checkpoint**, que registra o progresso após cada trimestre processado.
-
-* Caso o processo seja interrompido ou cancelado
-* A próxima execução retoma exatamente do ponto onde parou
-* Não há reprocessamento desnecessário
-
----
-
-## Logging e Rastreabilidade
-
-* Cada execução gera um **arquivo de log próprio**
-* Nenhum dado é perdido:
-
-  * Ou ele é processado
-  * Ou o motivo da falha fica registrado no log
-
-Isso garante total rastreabilidade e facilita auditorias.
 
 ---
 
