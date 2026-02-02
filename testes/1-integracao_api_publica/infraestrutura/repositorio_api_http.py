@@ -30,6 +30,7 @@ class RepositorioAPIHTTP(RepositorioAPI):
     
     def obter_trimestres_do_ano(self, ano: int) -> List[str]:
         try:
+            print(f"Procurando últimos trimestres disponíveis para {ano}...", flush=True)
             arquivos = []
             self._buscar_recursivo(f"{ano}", "", arquivos)
             
@@ -40,7 +41,7 @@ class RepositorioAPIHTTP(RepositorioAPI):
                     trimestres_encontrados.add(f"{match.group(1)}T")
             
             trimestres_validos = sorted(trimestres_encontrados)
-            print(f"Trimestres encontrados para {ano}: {trimestres_validos}")
+            print(f"Trimestres encontrados para {ano}: {trimestres_validos}", flush=True)
             return trimestres_validos
         except requests.exceptions.RequestException:
             return []
@@ -99,7 +100,7 @@ class RepositorioAPIHTTP(RepositorioAPI):
         caminho_destino = os.path.join(destino, arquivo.nome_base)
         
         try:
-            print(f"  Baixando {arquivo.nome_base}...")
+            print(f"  Fazendo download do arquivo {arquivo.nome_base}...", flush=True)
             resposta = self.sessao.get(url, timeout=30, stream=True)
             resposta.raise_for_status()
             

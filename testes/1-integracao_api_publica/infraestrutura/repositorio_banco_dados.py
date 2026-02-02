@@ -99,14 +99,15 @@ class RepositorioBancoDados:
                     sql = """
                         INSERT INTO demonstracoes_contabeis_temp 
                         (data, reg_ans, cd_conta_contabil, descricao, vl_saldo_inicial, vl_saldo_final, valor_trimestre, trimestre, ano)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES %s
                         ON CONFLICT (reg_ans, cd_conta_contabil, trimestre, ano) DO NOTHING
                     """
                     try:
-                        cursor.executemany(sql, valores_batch)
+                        from psycopg2.extras import execute_values
+
+                        execute_values(cursor, sql, valores_batch, page_size=1000)
                         processados = len(valores_batch)
                         self.conexao.commit()
-#                        logger.debug(f"[BATCH] {processados} registros inseridos com sucesso")
                     except Exception as e:
                         self.conexao.rollback()
                         cursor = self.conexao.cursor()

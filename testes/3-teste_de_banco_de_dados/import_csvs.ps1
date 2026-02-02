@@ -11,10 +11,14 @@ $USER = "jessica"
 $env:PGPASSWORD = "1234"
 
 # Caminhos dos arquivos
-$DOWNLOADS = "../downloads"
+$SCRIPT_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path
+$DOWNLOADS = Join-Path $SCRIPT_DIR "..\downloads"
+$DDL_SQL = Join-Path $SCRIPT_DIR "01_ddl.sql"
+$IMPORT_SQL = Join-Path $SCRIPT_DIR "04_import_data.sql"
+$ANALYTICS_SQL = Join-Path $SCRIPT_DIR "03_analytics.sql"
 
 Write-Host "`nPasso 1/4: Criando tabelas (DDL)..." -ForegroundColor Yellow
-docker cp "01_ddl.sql" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
+docker cp "$DDL_SQL" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
 docker exec $CONTAINER psql -U $USER -d $DB -f "/tmp/01_ddl.sql" 2>&1 | Out-Null
 Write-Host "OK - Tabelas criadas" -ForegroundColor Green
 
@@ -77,7 +81,7 @@ if (Test-Path "$extractAgregados/despesas_agregadas_c_deducoes.csv") {
 Write-Host "OK - $count arquivos copiados" -ForegroundColor Green
 
 Write-Host "`nPasso 3/4: Importando dados..." -ForegroundColor Yellow
-docker cp "04_import_data.sql" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
+docker cp "$IMPORT_SQL" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
 docker exec $CONTAINER psql -U $USER -d $DB -f "/tmp/04_import_data.sql" 2>&1 | Out-Null
 Write-Host "OK - Dados importados" -ForegroundColor Green
 
@@ -97,7 +101,14 @@ docker exec $CONTAINER psql -U $USER -d $DB -c "SELECT trimestre, COUNT(*) as re
 
 Write-Host ""
 Write-Host "Totais de despesas agregadas:" -ForegroundColor Cyan
-docker exec $CONTAINER psql -U $USER -d $DB -c "SELECT 'SEM DEDUCAO' AS tipo, ROUND(SUM(total_despesas)::numeric, 2) AS total FROM despesas_agregadas UNION ALL SELECT 'COM DEDUCAO', ROUND(SUM(total_despesas)::numeric, 2) FROM despesas_agregadas_c_deducoes;" 2>&1 | Select-Object -Skip 2
+$totais = docker exec $CONTAINER psql -U $USER -d $DB -t -A -F "|" -c "SELECT 'SEM DEDUCAO' AS tipo, ROUND(SUM(total_despesas)::numeric, 2) AS total FROM despesas_agregadas UNION ALL SELECT 'COM DEDUCAO', ROUND(SUM(total_despesas)::numeric, 2) FROM despesas_agregadas_c_deducoes;" 2>&1
+$linhasTotais = $totais | Where-Object { $_ -match '\|' }
+foreach ($linha in $linhasTotais) {
+    $partes = $linha -split '\|'
+    if ($partes.Length -ge 2) {
+        Write-Host (" {0} | {1}" -f $partes[0].Trim(), $partes[1].Trim())
+    }
+}
 
 Write-Host ""
 Write-Host "=======================================" -ForegroundColor Green
@@ -106,7 +117,7 @@ Write-Host "=======================================" -ForegroundColor Green
 
 Write-Host "" 
 Write-Host "Passo 5/5: Executando analytics (03_analytics.sql)..." -ForegroundColor Yellow
-docker cp "03_analytics.sql" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
+docker cp "$ANALYTICS_SQL" "${CONTAINER}:/tmp/" 2>&1 | Out-Null
 docker exec $CONTAINER psql -U $USER -d $DB -f "/tmp/03_analytics.sql"
 Write-Host "" 
 Write-Host "OK - Analytics executado" -ForegroundColor Green

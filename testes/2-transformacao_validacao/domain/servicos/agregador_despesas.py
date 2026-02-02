@@ -28,9 +28,11 @@ class AgregadorDespesas:
             return None
 
         df_valid["UF"] = df_valid["UF"].fillna("N/L")
+        if "REGISTROANS" not in df_valid.columns:
+            df_valid["REGISTROANS"] = "N/L"
 
         # Agregação base
-        base = df_valid.groupby(["RAZAO_SOCIAL", "UF"], dropna=False).agg(
+        base = df_valid.groupby(["RAZAO_SOCIAL", "UF", "REGISTROANS"], dropna=False).agg(
             total_despesas=("VALOR_NUM", "sum"),
             qtd_registros=("VALOR_NUM", "size"),
             qtd_trimestres=("TRIMESTRE", "nunique"),
@@ -39,17 +41,17 @@ class AgregadorDespesas:
 
         # Estatísticas por trimestre
         por_trimestre = df_valid.groupby(
-            ["RAZAO_SOCIAL", "UF", "TRIMESTRE"], 
+            ["RAZAO_SOCIAL", "UF", "REGISTROANS", "TRIMESTRE"], 
             dropna=False
         )["VALOR_NUM"].sum().reset_index()
         
         # Calcular desvio padrão dos valores dos trimestres com dados
-        stats = por_trimestre.groupby(["RAZAO_SOCIAL", "UF"], dropna=False)["VALOR_NUM"].agg(
+        stats = por_trimestre.groupby(["RAZAO_SOCIAL", "UF", "REGISTROANS"], dropna=False)["VALOR_NUM"].agg(
             desvio_padrao_despesas="std",
         ).reset_index()
 
         # Merge e finalização
-        resultado = base.merge(stats, on=["RAZAO_SOCIAL", "UF"], how="left")
+        resultado = base.merge(stats, on=["RAZAO_SOCIAL", "UF", "REGISTROANS"], how="left")
         resultado["desvio_padrao_despesas"] = resultado["desvio_padrao_despesas"].fillna(0)
         
         # Calcular média por trimestre (total / qtd_trimestres)
@@ -66,6 +68,7 @@ class AgregadorDespesas:
         resultado.rename(columns={
             "RAZAO_SOCIAL": "razao_social",
             "UF": "uf",
+            "REGISTROANS": "reg_ans",
         }, inplace=True)
 
         return resultado[[

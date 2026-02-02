@@ -6,7 +6,7 @@ Orquestra o carregamento de dados no banco usando serviços de domínio.
 import os
 from typing import Dict, Tuple
 
-from config import DATABASE_URL
+from config import DATABASE_URL, BATCH_SIZE
 from domain.servicos import ProcessadorArquivos, GeradorConsolidados
 from infraestrutura.repositorio_arquivo_local import RepositorioArquivoLocal
 from infraestrutura.repositorio_banco_dados import RepositorioBancoDados
@@ -29,7 +29,7 @@ class CarregarDadosBanco:
         self.repo_arquivo = repo_arquivo or RepositorioArquivoLocal()
         self.repo_banco = repo_banco or RepositorioBancoDados(DATABASE_URL)
         self.gerenciador_checkpoint = GerenciadorCheckpoint()
-        self.processador_lotes = ProcessadorEmLotes(tamanho_lote=100)
+        self.processador_lotes = ProcessadorEmLotes(tamanho_lote=BATCH_SIZE)
         self.carregador_operadoras = CarregarOperadoras()
         
         # Injetar serviços de domínio
@@ -116,7 +116,7 @@ class CarregarDadosBanco:
         for _, caminhos in arquivos.items():
             for caminho in caminhos:
                 nome_arquivo = os.path.basename(caminho)
-                print(f"\n  Processando: {nome_arquivo}")
+                print(f"\n  Carregando arquivo: {nome_arquivo}...", flush=True)
                 
                 # Usar serviço de domínio para extrair dados
                 ano, trimestre = self._extrair_ano_trimestre_arquivo(caminho)
@@ -131,6 +131,12 @@ class CarregarDadosBanco:
                 )
                 
                 if dados:
+                    total_rejeitados = rejeitados if rejeitados is not None else 0
+                    print(
+                        f"    Arquivo carregado: {len(dados)} registros válidos"
+                        f" | {total_rejeitados} rejeitados",
+                        flush=True,
+                    )
                     valor_total_inicial += valor_arquivo
                     print(
                         f"    Valor do arquivo (Final - Inicial): R$ {valor_arquivo:,.2f}"

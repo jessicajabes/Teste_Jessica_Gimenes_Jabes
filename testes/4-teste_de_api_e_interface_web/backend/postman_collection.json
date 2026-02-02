@@ -1,0 +1,205 @@
+{
+  "info": {
+    "name": "Teste API - Operadoras de Saúde",
+    "description": "Coleção completa da API de Operadoras de Saúde com exemplos de requisições e respostas",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Listar operadoras (paginado)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/operadoras?page=1&limit=10",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "operadoras"],
+          "query": [
+            { 
+              "key": "page", 
+              "value": "1",
+              "description": "Número da página (padrão: 1)"
+            },
+            { 
+              "key": "limit", 
+              "value": "10",
+              "description": "Quantidade de registros por página (padrão: 10, máximo: 100)"
+            },
+            { 
+              "key": "q", 
+              "value": "",
+              "description": "Termo de busca (razão social ou CNPJ)",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Lista todas as operadoras com paginação. Suporta busca por razão social ou CNPJ através do parâmetro 'q'."
+      },
+      "response": [
+        {
+          "name": "Sucesso - Lista paginada",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8000/api/operadoras?page=1&limit=10",
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [
+            { "key": "Content-Type", "value": "application/json" }
+          ],
+          "body": "{\n  \"data\": [\n    {\n      \"reg_ans\": \"123456\",\n      \"cnpj\": \"00000000000191\",\n      \"razao_social\": \"OPERADORA EXEMPLO LTDA\",\n      \"modalidade\": \"MEDICINA DE GRUPO\",\n      \"uf\": \"SP\",\n      \"status\": \"ATIVA\"\n    }\n  ],\n  \"total\": 150,\n  \"page\": 1,\n  \"limit\": 10\n}"
+        }
+      ]
+    },
+    {
+      "name": "Listar operadoras com busca",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/operadoras?page=1&limit=10&q=bradesco",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "operadoras"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "limit", "value": "10" },
+            { "key": "q", "value": "bradesco" }
+          ]
+        },
+        "description": "Busca operadoras filtrando por razão social ou CNPJ"
+      },
+      "response": [
+        {
+          "name": "Sucesso - Com busca",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8000/api/operadoras?page=1&limit=10&q=bradesco"
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"data\": [\n    {\n      \"reg_ans\": \"005711\",\n      \"cnpj\": \"92693118000160\",\n      \"razao_social\": \"BRADESCO SAUDE S/A\",\n      \"modalidade\": \"SEGURADORA ESPECIALIZADA EM SAUDE\",\n      \"uf\": \"RJ\",\n      \"status\": \"ATIVA\"\n    }\n  ],\n  \"total\": 2,\n  \"page\": 1,\n  \"limit\": 10\n}"
+        }
+      ]
+    },
+    {
+      "name": "Obter operadora por CNPJ",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/operadoras/92693118000160",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "operadoras", "92693118000160"]
+        },
+        "description": "Retorna os detalhes de uma operadora específica pelo CNPJ"
+      },
+      "response": [
+        {
+          "name": "Sucesso",
+          "originalRequest": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/operadoras/92693118000160"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"reg_ans\": \"005711\",\n  \"cnpj\": \"92693118000160\",\n  \"razao_social\": \"BRADESCO SAUDE S/A\",\n  \"modalidade\": \"SEGURADORA ESPECIALIZADA EM SAUDE\",\n  \"uf\": \"RJ\",\n  \"status\": \"ATIVA\"\n}"
+        },
+        {
+          "name": "Não encontrado",
+          "originalRequest": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/operadoras/99999999999999"
+          },
+          "status": "Not Found",
+          "code": 404,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"detail\": \"Operadora não encontrada\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Despesas por operadora",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/operadoras/92693118000160/despesas",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "operadoras", "92693118000160", "despesas"]
+        },
+        "description": "Retorna o histórico de despesas agregadas da operadora (com e sem dedução)"
+      },
+      "response": [
+        {
+          "name": "Sucesso",
+          "originalRequest": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/operadoras/92693118000160/despesas"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "[\n  {\n    \"tipo_deducao\": \"SEM DEDUÇÃO\",\n    \"razao_social\": \"BRADESCO SAUDE S/A\",\n    \"uf\": \"RJ\",\n    \"total_despesas\": 15000000.50,\n    \"media_despesas_trimestre\": 750000.25,\n    \"desvio_padrao_despesas\": 125000.10,\n    \"qtd_registros\": 20,\n    \"qtd_trimestres\": 20,\n    \"qtd_anos\": 5\n  },\n  {\n    \"tipo_deducao\": \"COM DEDUÇÃO\",\n    \"razao_social\": \"BRADESCO SAUDE S/A\",\n    \"uf\": \"RJ\",\n    \"total_despesas\": 14500000.30,\n    \"media_despesas_trimestre\": 725000.15,\n    \"desvio_padrao_despesas\": 120000.05,\n    \"qtd_registros\": 20,\n    \"qtd_trimestres\": 20,\n    \"qtd_anos\": 5\n  }\n]"
+        },
+        {
+          "name": "Não encontrado",
+          "originalRequest": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/operadoras/99999999999999/despesas"
+          },
+          "status": "Not Found",
+          "code": 404,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"detail\": \"Despesas não encontradas para a operadora\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Estatísticas gerais",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/estatisticas",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "estatisticas"]
+        },
+        "description": "Retorna estatísticas agregadas: total de despesas, média, top 5 operadoras e distribuição por UF. Esta rota utiliza cache de 10 minutos."
+      },
+      "response": [
+        {
+          "name": "Sucesso",
+          "originalRequest": {
+            "method": "GET",
+            "url": "http://localhost:8000/api/estatisticas"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"total_despesas\": 5000000000.00,\n  \"media_despesas\": 25000000.00,\n  \"top_5_operadoras\": [\n    {\n      \"razao_social\": \"BRADESCO SAUDE S/A\",\n      \"uf\": \"RJ\",\n      \"total_despesas\": 500000000.00\n    },\n    {\n      \"razao_social\": \"AMIL ASSISTENCIA MEDICA INTERNACIONAL S.A.\",\n      \"uf\": \"RJ\",\n      \"total_despesas\": 450000000.00\n    },\n    {\n      \"razao_social\": \"SUL AMERICA COMPANHIA DE SEGURO SAUDE\",\n      \"uf\": \"RJ\",\n      \"total_despesas\": 400000000.00\n    },\n    {\n      \"razao_social\": \"UNIMED SAO PAULO\",\n      \"uf\": \"SP\",\n      \"total_despesas\": 350000000.00\n    },\n    {\n      \"razao_social\": \"GOLDEN CROSS SEGURADORA S.A.\",\n      \"uf\": \"RJ\",\n      \"total_despesas\": 300000000.00\n    }\n  ],\n  \"despesas_por_uf\": [\n    {\n      \"uf\": \"SP\",\n      \"total_despesas\": 1500000000.00\n    },\n    {\n      \"uf\": \"RJ\",\n      \"total_despesas\": 1200000000.00\n    },\n    {\n      \"uf\": \"MG\",\n      \"total_despesas\": 800000000.00\n    },\n    {\n      \"uf\": \"RS\",\n      \"total_despesas\": 600000000.00\n    },\n    {\n      \"uf\": \"PR\",\n      \"total_despesas\": 500000000.00\n    }\n  ]\n}"
+        }
+      ]
+    }
+  ]
+}

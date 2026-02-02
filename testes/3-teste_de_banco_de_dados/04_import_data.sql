@@ -24,64 +24,66 @@ DELETE FROM operadoras;
 
 DROP TABLE IF EXISTS stg_operadoras CASCADE;
 CREATE TEMP TABLE stg_operadoras (
-    cnpj TEXT,
-    reg_ans TEXT,
-    razao_social TEXT,
-    modalidade TEXT,
-    uf TEXT
+  cnpj TEXT,
+  reg_ans TEXT,
+  razao_social TEXT,
+  modalidade TEXT,
+  uf TEXT
 );
 
 DROP TABLE IF EXISTS stg_sinistro_sem CASCADE;
 CREATE TEMP TABLE stg_sinistro_sem (
-    reg_ans TEXT,
-    cnpj TEXT,
-    razao_social TEXT,
-    trimestre TEXT,
-    ano TEXT,
-    valor_despesas TEXT
+  reg_ans TEXT,
+  cnpj TEXT,
+  razao_social TEXT,
+  trimestre TEXT,
+  ano TEXT,
+  valor_despesas TEXT
 );
 
 DROP TABLE IF EXISTS stg_sinistro_com CASCADE;
 CREATE TEMP TABLE stg_sinistro_com (
-    cnpj TEXT,
-    razao_social TEXT,
-    trimestre TEXT,
-    ano TEXT,
-    valor_despesas TEXT,
-    reg_ans TEXT,
-    conta_contabil TEXT,
-    descricao TEXT
+  cnpj TEXT,
+  razao_social TEXT,
+  trimestre TEXT,
+  ano TEXT,
+  valor_despesas TEXT,
+  reg_ans TEXT,
+  conta_contabil TEXT,
+  descricao TEXT
 );
 
 DROP TABLE IF EXISTS stg_despesas_agregadas CASCADE;
 CREATE TEMP TABLE stg_despesas_agregadas (
-    razao_social TEXT,
-    uf TEXT,
-    total_despesas TEXT,
-    media_despesas_trimestre TEXT,
-    desvio_padrao_despesas TEXT,
-    qtd_registros TEXT,
-    qtd_trimestres TEXT,
-    qtd_anos TEXT
+  razao_social TEXT,
+  reg_ans TEXT,
+  uf TEXT,
+  total_despesas TEXT,
+  media_despesas_trimestre TEXT,
+  desvio_padrao_despesas TEXT,
+  qtd_registros TEXT,
+  qtd_trimestres TEXT,
+  qtd_anos TEXT
 );
 
 DROP TABLE IF EXISTS stg_despesas_agregadas_c_deducoes CASCADE;
 CREATE TEMP TABLE stg_despesas_agregadas_c_deducoes (
-    razao_social TEXT,
-    uf TEXT,
-    total_despesas TEXT,
-    media_despesas_trimestre TEXT,
-    desvio_padrao_despesas TEXT,
-    qtd_registros TEXT,
-    qtd_trimestres TEXT,
-    qtd_anos TEXT
+  razao_social TEXT,
+  reg_ans TEXT,
+  uf TEXT,
+  total_despesas TEXT,
+  media_despesas_trimestre TEXT,
+  desvio_padrao_despesas TEXT,
+  qtd_registros TEXT,
+  qtd_trimestres TEXT,
+  qtd_anos TEXT
 );
 
 -- =====================================================
 -- 2. IMPORTAR OPERADORAS ATIVAS
 -- =====================================================
 
-\COPY stg_operadoras(cnpj, reg_ans, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_ativas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_operadoras(reg_ans, cnpj, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_ativas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 -- Inserir operadoras ATIVAS
 INSERT INTO operadoras (reg_ans, cnpj, razao_social, modalidade, uf, status)
@@ -106,7 +108,7 @@ DELETE FROM stg_operadoras;
 -- 3. IMPORTAR OPERADORAS CANCELADAS
 -- =====================================================
 
-\COPY stg_operadoras(cnpj, reg_ans, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_canceladas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_operadoras(reg_ans, cnpj, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_canceladas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 -- Inserir operadoras CANCELADAS
 INSERT INTO operadoras (reg_ans, cnpj, razao_social, modalidade, uf, status)
@@ -173,7 +175,7 @@ ON CONFLICT DO NOTHING;
 -- 6. IMPORTAR DESPESAS AGREGADAS (SEM DEDUÇÃO)
 -- =====================================================
 
-\COPY stg_despesas_agregadas(razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/tmp/csvs/despesas_agregadas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_despesas_agregadas(razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/tmp/csvs/despesas_agregadas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 INSERT INTO despesas_agregadas (razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
 SELECT
@@ -185,27 +187,17 @@ SELECT
     CAST(COALESCE(NULLIF(TRIM(s.qtd_registros), ''), '0') AS INTEGER) AS qtd_registros,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_trimestres), ''), '0') AS INTEGER) AS qtd_trimestres,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_anos), ''), '0') AS INTEGER) AS qtd_anos,
-    MIN(o.reg_ans) AS reg_ans
+    o.reg_ans AS reg_ans
 FROM stg_despesas_agregadas s
-JOIN operadoras o 
-  ON o.razao_social = TRIM(s.razao_social)
- AND (o.uf = NULLIF(TRIM(s.uf), '') OR (o.uf IS NULL AND NULLIF(TRIM(s.uf), '') IS NULL))
-GROUP BY
-    TRIM(s.razao_social),
-    NULLIF(TRIM(s.uf), ''),
-    s.total_despesas,
-    s.media_despesas_trimestre,
-    s.desvio_padrao_despesas,
-    s.qtd_registros,
-    s.qtd_trimestres,
-    s.qtd_anos
+JOIN operadoras o
+  ON o.reg_ans = TRIM(s.reg_ans)
 ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- 7. IMPORTAR DESPESAS AGREGADAS (COM DEDUÇÃO)
 -- =====================================================
 
-\COPY stg_despesas_agregadas_c_deducoes(razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/tmp/csvs/despesas_agregadas_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_despesas_agregadas_c_deducoes(razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/tmp/csvs/despesas_agregadas_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 INSERT INTO despesas_agregadas_c_deducoes (razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
 SELECT
@@ -217,20 +209,10 @@ SELECT
     CAST(COALESCE(NULLIF(TRIM(s.qtd_registros), ''), '0') AS INTEGER) AS qtd_registros,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_trimestres), ''), '0') AS INTEGER) AS qtd_trimestres,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_anos), ''), '0') AS INTEGER) AS qtd_anos,
-    MIN(o.reg_ans) AS reg_ans
+    o.reg_ans AS reg_ans
 FROM stg_despesas_agregadas_c_deducoes s
-JOIN operadoras o 
-  ON o.razao_social = TRIM(s.razao_social)
- AND (o.uf = NULLIF(TRIM(s.uf), '') OR (o.uf IS NULL AND NULLIF(TRIM(s.uf), '') IS NULL))
-GROUP BY
-    TRIM(s.razao_social),
-    NULLIF(TRIM(s.uf), ''),
-    s.total_despesas,
-    s.media_despesas_trimestre,
-    s.desvio_padrao_despesas,
-    s.qtd_registros,
-    s.qtd_trimestres,
-    s.qtd_anos
+JOIN operadoras o
+  ON o.reg_ans = TRIM(s.reg_ans)
 ON CONFLICT DO NOTHING;
 
 -- =====================================================

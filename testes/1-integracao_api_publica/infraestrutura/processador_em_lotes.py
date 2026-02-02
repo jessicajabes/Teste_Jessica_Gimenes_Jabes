@@ -19,6 +19,9 @@ class ProcessadorEmLotes:
         registros_processados = 0
         registros_com_erro = 0
         total_registros = len(registros)
+        ultimo_percentual = 0
+        if total_registros > 0:
+            print(f"    Processando em lotes de {self.tamanho_lote} registros...", flush=True)
         
         numero_lote = 0
         for i in range(registro_inicial, total_registros, self.tamanho_lote):
@@ -26,7 +29,6 @@ class ProcessadorEmLotes:
             numero_lote += 1
             
             fim = min(i + self.tamanho_lote, total_registros)
-            print(f"    Lote {numero_lote}: {i+1}-{fim} de {total_registros}")
             
             try:
                 resultado = funcao_inserir(lote, arquivo_origem=arquivo_atual)
@@ -57,6 +59,16 @@ class ProcessadorEmLotes:
                 print(f"      [FALHA] EXCEÇÃO no lote: {str(e)}")
                 # AVISO: NÃO incrementa registros_com_erro para permitir reprocessamento na próxima execução
                 # Os registros deste lote permanecerão no checkpoint anterior
+
+            if total_registros > 0:
+                percentual = int((fim / total_registros) * 100)
+                percentual_atual = (percentual // 5) * 5
+                if percentual_atual >= 5 and percentual_atual > ultimo_percentual:
+                    ultimo_percentual = percentual_atual
+                    print(
+                        f"    Progresso do arquivo {arquivo_atual}: {percentual_atual}% ({fim}/{total_registros})",
+                        flush=True,
+                    )
         
         return {
             "registros_processados": registros_processados,

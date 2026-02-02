@@ -34,7 +34,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - .testes/4-teste_de_api_e_interface_web/backend:/app
+      - ./testes/4-teste_de_api_e_interface_web/backend:/app
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,7 +43,7 @@ services:
   # Teste 4 - Frontend Vue.js
   frontend_operadoras:
     build:
-      context: .testes/4-teste_de_api_e_interface_web/frontend
+      context: ./testes/4-teste_de_api_e_interface_web/frontend
       dockerfile: Dockerfile
     container_name: intuitive-care-frontend-operadoras
     environment:
@@ -51,7 +51,7 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - .testes/4-teste_de_api_e_interface_web/frontend:/app
+      - ./testes/4-teste_de_api_e_interface_web/frontend:/app
       - /app/node_modules
     depends_on:
       - api_operadoras

@@ -49,25 +49,33 @@ class ProcessadorArquivos:
         return None
     
     @staticmethod
-    def contem_palavras_chave(caminho_arquivo: str) -> bool:
+    def contem_palavras_chave(caminho_arquivo: str = None, df: Optional[pd.DataFrame] = None) -> bool:
         """Verifica se o arquivo contém as palavras-chave esperadas."""
         try:
-            if caminho_arquivo.endswith('.csv'):
-                df = ProcessadorArquivos.ler_arquivo_com_encoding(caminho_arquivo, sep=';')
-            elif caminho_arquivo.endswith('.txt'):
-                df = ProcessadorArquivos.ler_arquivo_com_encoding(caminho_arquivo, sep='\t')
-            elif caminho_arquivo.endswith('.xlsx'):
-                df = pd.read_excel(caminho_arquivo)
-            else:
-                return False
-            
             if df is None:
+                if caminho_arquivo is None:
+                    return False
+                if caminho_arquivo.endswith('.csv'):
+                    df = ProcessadorArquivos.ler_arquivo_com_encoding(caminho_arquivo, sep=';')
+                elif caminho_arquivo.endswith('.txt'):
+                    df = ProcessadorArquivos.ler_arquivo_com_encoding(caminho_arquivo, sep='\t')
+                elif caminho_arquivo.endswith('.xlsx'):
+                    df = pd.read_excel(caminho_arquivo)
+                else:
+                    return False
+            
+            if df is None or df.empty:
                 return False
             
-            conteudo = df.to_string().upper()
+            amostra = df.head(5000) if len(df) > 5000 else df
+            colunas_texto = [c for c in amostra.columns if 'DESCR' in c or 'DESCRICAO' in c]
+            
+            alvo = amostra[colunas_texto] if colunas_texto else amostra.iloc[:, : min(10, amostra.shape[1])]
             
             for palavra in ProcessadorArquivos.PALAVRAS_CHAVE:
-                if palavra.upper() in conteudo:
+                if alvo.astype(str).apply(
+                    lambda col: col.str.contains(palavra, case=False, na=False)
+                ).any().any():
                     return True
             
             return False
@@ -102,8 +110,8 @@ class ProcessadorArquivos:
             print(f"    Linhas no arquivo: {len(df)}")
             print(f"    Colunas: {list(df.columns)[:5]}...")
             
-            # Verificar se o arquivo contém a palavra-chave
-            if not ProcessadorArquivos.contem_palavras_chave(caminho_arquivo):
+            # Verificar se o arquivo contém a palavra-chave (sem reler o arquivo)
+            if not ProcessadorArquivos.contem_palavras_chave(df=df):
                 print(f"    Arquivo não contém '{ProcessadorArquivos.PALAVRAS_CHAVE[0]}', pulando...")
                 return [], 0.0, 0
             
