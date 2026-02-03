@@ -10,10 +10,11 @@ Orquestra todo o fluxo de integração:
 import os
 from typing import Dict
 
-from config import DIRETORIO_DOWNLOADS, DIRETORIO_CONSOLIDADO
+from config import DIRETORIO_DOWNLOADS, DIRETORIO_CONSOLIDADO, DIRETORIO_ZIPS, API_BASE_URL
 from casos_uso.buscar_trimestres_disponiveis import BuscarTrimestresDisponiveis
 from casos_uso.baixar_arquivos_trimestres import BaixarArquivosTrimestres
 from infraestrutura.gerenciador_arquivos import GerenciadorArquivos
+from infraestrutura.cliente_api_ans import ClienteAPIANS
 from domain.servicos.gerador_consolidados_pandas import GeradorConsolidadosPandas
 from infraestrutura.logger import get_logger
 
@@ -58,9 +59,9 @@ class BaixarEGerarConsolidados:
             logger.warning("Nenhum trimestre encontrado")
             return self._resultado_vazio("Nenhum trimestre encontrado")
 
-        print(f"✓ Encontrados {len(trimestres)} trimestres:")
+        print(f"[OK] Encontrados {len(trimestres)} trimestres:")
         for trimestre in trimestres:
-            print(f"  • {trimestre}")
+            print(f"  - {trimestre}")
         
         # Verificar se trimestres são consecutivos e tentar preencher lacunas
         trimestres = self._verificar_e_preencher_trimestres(trimestres)
@@ -71,18 +72,30 @@ class BaixarEGerarConsolidados:
         arquivos_baixados = baixar_arquivos.executar(trimestres)
         
         if not arquivos_baixados:
-            print("✗ Nenhum arquivo foi baixado")
+            print("[ERRO] Nenhum arquivo foi baixado")
             logger.error("Falha ao baixar arquivos")
             return self._resultado_erro("Nenhum arquivo foi baixado")
 
-        print(f"✓ {len(arquivos_baixados)} arquivos baixados com sucesso")
+        print(f"[OK] {len(arquivos_baixados)} arquivos baixados com sucesso")
+        
+        # PASSO 2.5: Baixar operadoras (ativas e canceladas)
+        print("\n[2.5/4] Baixando arquivo de operadoras...")
+        cliente_api = ClienteAPIANS(API_BASE_URL)
+        sucesso_operadoras = cliente_api.baixar_operadoras(DIRETORIO_ZIPS)
+        
+        if not sucesso_operadoras:
+            print("⚠ Aviso: Nenhum arquivo de operadoras foi baixado (continuando com os trimestres)")
+            logger.warning("Nenhum arquivo de operadoras foi baixado")
+        else:
+            print("[OK] Operadoras baixadas com sucesso")
+        
+        cliente_api.fechar()
 
         # PASSO 3: Extrair ZIPs
         print("\n[3/4] Extraindo arquivos CSV dos ZIPs...")
         gerenciador_arquivos = GerenciadorArquivos()
-        from config import DIRETORIO_ZIPS
         gerenciador_arquivos.extrair_zips(DIRETORIO_ZIPS)
-        print("✓ Arquivos extraídos")
+        print("[OK] Arquivos extraidos")
 
         # PASSO 4: Gerar consolidados via pandas JOIN
         print("\n[4/4] Gerando arquivos consolidados...")
@@ -124,7 +137,7 @@ class BaixarEGerarConsolidados:
     def _resultado_erro(self, mensagem: str) -> Dict:
         """Retorna resultado de erro."""
         print("\n" + "=" * 60)
-        print("✗ ERRO NO PROCESSAMENTO")
+        print("[ERRO] ERRO NO PROCESSAMENTO")
         print("=" * 60)
         return {
             "sucesso": False,
@@ -140,23 +153,23 @@ class BaixarEGerarConsolidados:
         print("\n" + "=" * 60)
         
         if resultado["sucesso"]:
-            print("✓ CONSOLIDADOS GERADOS COM SUCESSO")
+            print("[OK] CONSOLIDADOS GERADOS COM SUCESSO")
             print(f"\n  Estatísticas:")
-            print(f"  • Total de registros: {resultado['total_registros']:,}")
-            print(f"  • Com operadora: {resultado['com_operadora']:,} ({self._percentual(resultado['com_operadora'], resultado['total_registros'])}%)")
-            print(f"  • Sem operadora (N/L): {resultado['sem_operadora']:,} ({self._percentual(resultado['sem_operadora'], resultado['total_registros'])}%)")
+            print(f"  - Total de registros: {resultado['total_registros']:,}")
+            print(f"  - Com operadora: {resultado['com_operadora']:,} ({self._percentual(resultado['com_operadora'], resultado['total_registros'])}%)")
+            print(f"  - Sem operadora (N/L): {resultado['sem_operadora']:,} ({self._percentual(resultado['sem_operadora'], resultado['total_registros'])}%)")
             
             if resultado.get('registros_com_deducoes'):
                 print(f"\n  Arquivos consolidados:")
-                print(f"  • Sinistros com deduções: {resultado['registros_com_deducoes']:,} registros")
-                print(f"  • Sinistros sem deduções (agregado): {resultado['registros_sem_deducoes']:,} registros")
+                print(f"  - Sinistros com deducoes: {resultado['registros_com_deducoes']:,} registros")
+                print(f"  - Sinistros sem deducoes (agregado): {resultado['registros_sem_deducoes']:,} registros")
             
             if resultado.get('arquivos_gerados'):
                 print(f"\n  Arquivo gerado:")
                 for arquivo in resultado['arquivos_gerados']:
-                    print(f"  • {os.path.basename(arquivo)}")
+                    print(f"  - {os.path.basename(arquivo)}")
         else:
-            print("✗ ERRO AO GERAR CONSOLIDADOS")
+            print("[ERRO] ERRO AO GERAR CONSOLIDADOS")
             print(f"  {resultado.get('erro', 'Erro desconhecido')}")
         
         print("=" * 60)
@@ -166,6 +179,64 @@ class BaixarEGerarConsolidados:
         if total == 0:
             return "0.0"
         return f"{(parte / total * 100):.1f}"
+
+    def _normalizar_trimestre(self, trimestre) -> str:
+        """Normaliza um trimestre para o formato "YYYY/nT".
+        
+        Aceita formatos:
+        - Objeto Trimestre(ano=2025, numero=1)
+        - "2025/1T"
+        - "2025/1Q"
+        - "2025/Q1"
+        - "2025_1T"
+        - "20251T"
+        - "2025 1T"
+        
+        Args:
+            trimestre: Trimestre em qualquer formato (objeto ou string)
+            
+        Returns:
+            Trimestre normalizado no formato "YYYY/nT" ou None se inválido
+        """
+        import re
+        
+        if not trimestre:
+            return None
+        
+        # Converter objeto para string se necessário
+        trimestre_str = str(trimestre) if not isinstance(trimestre, str) else trimestre
+        
+        # Remove espaços e normaliza separadores
+        t = trimestre_str.strip().replace('_', '/').replace(' ', '/')
+        
+        # Tenta encontrar padrão YYYY/nT ou YYYY/nQ (número antes de T/Q)
+        # Exemplos: 2025/1T, 2025/1Q, 2025-1T
+        match = re.search(r'(\d{4})[/\-]?(\d)[/\-]?[TQ]', t, re.IGNORECASE)
+        if match:
+            ano = match.group(1)
+            trim_num = match.group(2)
+            if trim_num in '1234':
+                return f"{ano}/{trim_num}T"
+        
+        # Tenta encontrar padrão YYYY/Qn ou YYYY/Tn (letra antes de número)
+        # Exemplos: 2025/Q1, 2025/T1
+        match = re.search(r'(\d{4})[/\-]?[QT](\d)', t, re.IGNORECASE)
+        if match:
+            ano = match.group(1)
+            trim_num = match.group(2)
+            if trim_num in '1234':
+                return f"{ano}/{trim_num}T"
+        
+        # Tenta encontrar padrão direto YYYY#T ou YYYYT# (sem separador)
+        # Exemplos: 20251T, 2025T1
+        match = re.search(r'(\d{4})(\d)[TQ]?', t, re.IGNORECASE)
+        if match:
+            ano = match.group(1)
+            trim_num = match.group(2)
+            if trim_num in '1234':
+                return f"{ano}/{trim_num}T"
+        
+        return None
 
     def _verificar_e_preencher_trimestres(self, trimestres: list) -> list:
         """Verifica trimestres consecutivos e tenta preencher lacunas automaticamente.
@@ -177,7 +248,7 @@ class BaixarEGerarConsolidados:
         4. Adiciona o trimestre encontrado aos dados a processar
         
         Args:
-            trimestres: Lista de trimestres no formato "YYYY/nT"
+            trimestres: Lista de trimestres em qualquer formato
             
         Returns:
             Lista de trimestres (pode incluir trimestres preenchidos automaticamente)
@@ -185,16 +256,31 @@ class BaixarEGerarConsolidados:
         if len(trimestres) < 2:
             return trimestres  # Apenas 1 trimestre, não há como validar
         
+        # Normalizar formato dos trimestres para "YYYY/nT"
+        trimestres_normalizados = []
+        for t in trimestres:
+            t_norm = self._normalizar_trimestre(t)
+            if t_norm:
+                trimestres_normalizados.append(t_norm)
+            else:
+                logger.warning(f"Nao foi possivel normalizar trimestre: {t}")
+        
+        if len(trimestres_normalizados) < 2:
+            return trimestres  # Se não conseguir normalizar, retorna original
+        
         # Converter e ordenar trimestres
         trimestres_parseados = []
-        for t in trimestres:
+        for t in trimestres_normalizados:
             try:
                 ano, trimestre = t.split('/')
                 trimestre_num = int(trimestre[0])
                 trimestres_parseados.append((int(ano), trimestre_num, t))
-            except (ValueError, IndexError):
-                logger.warning(f"Formato de trimestre inválido: {t}")
-                return trimestres
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Erro ao processar trimestre normalizado {t}: {e}")
+                continue
+        
+        if not trimestres_parseados:
+            return trimestres
         
         trimestres_parseados.sort(key=lambda x: (x[0], x[1]))
         
@@ -232,8 +318,8 @@ class BaixarEGerarConsolidados:
             
             trimestres = self._tentar_preencher_lacunas(trimestres, trimestres_faltando)
         else:
-            print("\n✓ Trimestres são consecutivos")
-            logger.info("Trimestres são consecutivos")
+            print("\n[OK] Trimestres sao consecutivos")
+            logger.info("Trimestres sao consecutivos")
         
         return trimestres
 
@@ -290,14 +376,14 @@ class BaixarEGerarConsolidados:
                     for trim in trimestres_encontrados:
                         if trim not in trimestres:
                             trimestres.append(trim)
-                            print(f"    ✓ Adicionado: {trim} (encontrado por data)")
+                            print(f"    [OK] Adicionado: {trim} (encontrado por data)")
                             logger.info(f"Trimestre {trim} adicionado (encontrado por data)")
                 else:
-                    print(f"    ⚠ Nenhum arquivo com datas de {ano} encontrado")
+                    print(f"    [AVISO] Nenhum arquivo com datas de {ano} encontrado")
                     logger.warning(f"Nenhum arquivo com datas de {ano} encontrado para trimestres: {trims_faltando}")
             
             except Exception as e:
-                print(f"    ✗ Erro ao processar {ano}: {str(e)}")
+                print(f"    [ERRO] Erro ao processar {ano}: {str(e)}")
                 logger.error(f"Erro ao preencher lacuna de {ano}: {str(e)}")
         
         return trimestres
@@ -430,9 +516,9 @@ class BaixarEGerarConsolidados:
         
         # Exibir aviso se houver lacunas
         if trimestres_faltando:
-            mensagem = f"⚠ Trimestres não são consecutivos! Faltando: {', '.join(trimestres_faltando)}"
+            mensagem = f"[AVISO] Trimestres nao sao consecutivos! Faltando: {', '.join(trimestres_faltando)}"
             print(f"\n{mensagem}")
             logger.warning(mensagem)
         else:
-            print("\n✓ Trimestres são consecutivos")
-            logger.info("Trimestres são consecutivos")
+            print("\n[OK] Trimestres sao consecutivos")
+            logger.info("Trimestres sao consecutivos")

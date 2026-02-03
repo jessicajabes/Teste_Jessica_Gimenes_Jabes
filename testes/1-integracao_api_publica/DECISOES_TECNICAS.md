@@ -173,6 +173,13 @@ Gera 2 arquivos CSV diferentes para permitir análise completa:
 - ANO
 - VALOR_DE_DESPESAS (formato brasileiro: 1.234,56)
 
+**Resumo de Dados Gerados (Execução Típica):**
+
+| Arquivo | Registros | Operadoras | Valor Total |
+|---------|-----------|-----------|--------------|
+| consolidado_despesas_sinistros_s_deducoes.csv | 777 | 720 | R$ 299.0 Bilhões |
+| consolidado_despesas_sinistros_c_deducoes.csv | 3.035 | 1.110 | R$ 204.7 Bilhões |
+
 ## Logging e Auditoria
 
 **Arquivo:** `infraestrutura/logger.py`

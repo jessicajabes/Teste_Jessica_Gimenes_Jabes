@@ -193,3 +193,52 @@ class ClienteAPIANS(RepositorioAPI):
         
         except requests.exceptions.RequestException:
             pass  # Silenciosamente ignorar erros de navegação
+    
+    def baixar_operadoras(self, destino: str) -> bool:
+        """Baixa os arquivos de operadoras (ativas e canceladas).
+        
+        A API ANS disponibiliza operadoras em:
+        - https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_ativas/
+        - https://dadosabertos.ans.gov.br/FTP/PDA/operadoras_de_plano_de_saude_canceladas/
+        
+        Args:
+            destino: Diretório de destino
+            
+        Returns:
+            True se pelo menos um arquivo foi baixado com sucesso
+        """
+        os.makedirs(destino, exist_ok=True)
+        
+        sucesso = False
+        # Mapping de pastas da API para nomes de arquivo real
+        arquivos_operadoras = [
+            ('operadoras_de_plano_de_saude_ativas', 'Relatorio_cadop.csv', 'operadoras ativas'),
+            ('operadoras_de_plano_de_saude_canceladas', 'Relatorio_cadop_canceladas.csv', 'operadoras canceladas')
+        ]
+        
+        # Remover barra à direita da URL base se existir
+        url_base_limpa = self.url_base.rstrip('/')
+        
+        for pasta_api, nome_arquivo, tipo in arquivos_operadoras:
+            # A URL aponta direto para o arquivo CSV dentro da pasta
+            url = f"{url_base_limpa}/{pasta_api}/{nome_arquivo}"
+            caminho_destino = os.path.join(destino, nome_arquivo)
+            
+            try:
+                print(f"  Baixando {tipo}...", end=" ", flush=True)
+                
+                resposta = self.sessao.get(url, timeout=30, stream=True)
+                resposta.raise_for_status()
+                
+                with open(caminho_destino, 'wb') as f:
+                    for trecho in resposta.iter_content(chunk_size=8192):
+                        f.write(trecho)
+                
+                tamanho_mb = os.path.getsize(caminho_destino) / (1024 * 1024)
+                print(f"OK ({tamanho_mb:.1f} MB)")
+                sucesso = True
+                
+            except requests.exceptions.RequestException as e:
+                print(f"FALHA ({e})")
+        
+        return sucesso

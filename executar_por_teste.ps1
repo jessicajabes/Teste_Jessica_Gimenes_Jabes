@@ -43,8 +43,8 @@ switch ($opcao) {
     }
     '3' {
         Write-Host "Executando Teste 3..." -ForegroundColor Cyan
-        $importScript = Join-Path $ROOT "backend\3-teste_de_banco_de_dados\import_csvs.ps1"
-        powershell -ExecutionPolicy Bypass -File $importScript
+        $importScript = Join-Path $ROOT "testes\3-teste_de_banco_de_dados\executar_teste_3.ps1"
+        & $importScript
     }
     '4' {
         Write-Host "Executando Teste 4..." -ForegroundColor Cyan

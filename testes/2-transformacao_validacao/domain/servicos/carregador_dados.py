@@ -85,3 +85,70 @@ class CarregadorDados:
             df = EnriquecedorOperadorasCarregadas.enriquecer(df)
 
         return df
+    
+    @staticmethod
+    def carregar_operadoras_de_csvs(diretorio_downloads: str, logger: logging.Logger) -> pd.DataFrame:
+        """
+        Carrega operadoras ATIVAS e CANCELADAS dos CSVs gerados pelo Teste 1.
+        
+        Args:
+            diretorio_downloads: Diretório raiz dos downloads
+            logger: Logger para registrar erros
+        
+        Returns:
+            DataFrame com TODAS as operadoras (ativas + canceladas)
+        """
+        import pandas as pd
+        
+        # Buscar arquivos de operadoras
+        pasta_operadoras = os.path.join(diretorio_downloads, "operadoras")
+        ativas_path = os.path.join(pasta_operadoras, "operadoras_ativas.csv")
+        canceladas_path = os.path.join(pasta_operadoras, "operadoras_canceladas.csv")
+        
+        dfs = []
+        
+        # Carregar ativas
+        if os.path.exists(ativas_path):
+            try:
+                ativas = pd.read_csv(ativas_path, sep=';', encoding='utf-8-sig')
+                ativas.columns = ativas.columns.str.lower().str.strip()
+                ativas['status'] = 'ATIVA'
+                dfs.append(ativas)
+                logger.info(f"✓ {len(ativas)} operadoras ativas carregadas")
+            except Exception as e:
+                logger.error(f"Erro ao carregar operadoras ativas: {e}")
+        
+        # Carregar canceladas
+        if os.path.exists(canceladas_path):
+            try:
+                canceladas = pd.read_csv(canceladas_path, sep=';', encoding='utf-8-sig')
+                canceladas.columns = canceladas.columns.str.lower().str.strip()
+                canceladas['status'] = 'CANCELADA'
+                dfs.append(canceladas)
+                logger.info(f"✓ {len(canceladas)} operadoras canceladas carregadas")
+            except Exception as e:
+                logger.error(f"Erro ao carregar operadoras canceladas: {e}")
+        
+        if not dfs:
+            logger.error("Nenhum arquivo de operadoras encontrado")
+            return pd.DataFrame()
+        
+        # Concatenar todas
+        operadoras = pd.concat(dfs, ignore_index=True)
+        
+        # Normalizar coluna de registro ANS
+        coluna_reg = None
+        for coluna_possivel in ['registro_operadora', 'reg_ans', 'registro_ans', 'registro ans']:
+            if coluna_possivel in operadoras.columns:
+                coluna_reg = coluna_possivel
+                break
+        
+        if coluna_reg and coluna_reg != 'reg_ans':
+            operadoras.rename(columns={coluna_reg: 'reg_ans'}, inplace=True)
+        
+        # Enriquecer com lógica de domínio
+        if not operadoras.empty:
+            operadoras = EnriquecedorOperadorasCarregadas.enriquecer(operadoras)
+        
+        logger.info(f"✓ Total: {len(operadoras)} operadoras carregadas (ativas + canceladas)")
+        return operadoras

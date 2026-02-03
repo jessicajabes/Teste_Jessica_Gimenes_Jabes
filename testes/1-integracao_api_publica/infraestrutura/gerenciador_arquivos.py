@@ -2,6 +2,7 @@
 
 import os
 import zipfile
+import shutil
 from typing import List
 
 
@@ -11,6 +12,10 @@ class GerenciadorArquivos:
     def extrair_zips(self, diretorio: str) -> None:
         """Extrai todos os arquivos ZIP em um diretório.
         
+        Tratamento especial:
+        - Relatorio_cadop*.csv: copia para /operadoras
+        - Outros ZIPs: extrai para /extracted
+        
         Args:
             diretorio: Diretório contendo os arquivos ZIP
         """
@@ -18,10 +23,15 @@ class GerenciadorArquivos:
             print(f" Diretório não encontrado: {diretorio}")
             return
         
+        # Primeiro, copiar CSVs de operadoras
+        self._copiar_csvs_operadoras(diretorio)
+        
+        # Depois, extrair ZIPs
         arquivos_zip = [f for f in os.listdir(diretorio) if f.endswith('.zip')]
         
         if not arquivos_zip:
-            print(" Nenhum arquivo ZIP encontrado")
+            if not os.path.exists(os.path.join(diretorio, 'operadoras')):
+                print(" Nenhum arquivo ZIP encontrado")
             return
         
         print(f"  Extraindo {len(arquivos_zip)} arquivos ZIP...")
@@ -33,9 +43,34 @@ class GerenciadorArquivos:
             try:
                 with zipfile.ZipFile(caminho_zip, 'r') as zip_ref:
                     zip_ref.extractall(diretorio_extracao)
-                print(f"    ✓ {arquivo_zip}")
+                print(f"    [OK] {arquivo_zip}")
             except Exception as e:
-                print(f"    ✗ Erro ao extrair {arquivo_zip}: {e}")
+                print(f"    [ERRO] Erro ao extrair {arquivo_zip}: {e}")
+    
+    def _copiar_csvs_operadoras(self, diretorio: str) -> None:
+        """Copia CSVs de operadoras para a pasta /operadoras.
+        
+        Args:
+            diretorio: Diretório contendo os CSVs
+        """
+        diretorio_operadoras = os.path.join(diretorio, 'operadoras')
+        os.makedirs(diretorio_operadoras, exist_ok=True)
+        
+        csvs_copiados = False
+        
+        # Procurar por CSVs de operadoras
+        arquivos_no_dir = os.listdir(diretorio)
+        for arquivo in arquivos_no_dir:
+            if arquivo.startswith('Relatorio_cadop') and arquivo.endswith('.csv'):
+                origem = os.path.join(diretorio, arquivo)
+                destino = os.path.join(diretorio_operadoras, arquivo)
+                
+                try:
+                    shutil.copy2(origem, destino)
+                    print(f"    [COPY] {arquivo} -> operadoras/")
+                    csvs_copiados = True
+                except Exception as e:
+                    print(f"    [ERRO] Erro ao copiar {arquivo}: {e}")
     
     def listar_csvs(self, diretorio: str) -> List[str]:
         """Lista todos os arquivos CSV em um diretório (recursivo).

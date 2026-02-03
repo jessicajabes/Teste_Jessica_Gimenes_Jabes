@@ -60,7 +60,7 @@ class GeradorConsolidadosPandas:
                     "arquivos_gerados": []
                 }
             
-            print(f"    ✓ {len(operadoras_df)} operadoras carregadas")
+            print(f"    [OK] {len(operadoras_df)} operadoras carregadas")
             
             # 2. Carregar todos os CSVs de trimestres
             arquivos_intermediarios = []
@@ -79,7 +79,7 @@ class GeradorConsolidadosPandas:
                     "arquivos_gerados": []
                 }
             
-            print(f"    ✓ {len(csvs_encontrados)} CSVs encontrados")
+            print(f"    [OK] {len(csvs_encontrados)} CSVs encontrados")
             
             # Processar cada CSV de trimestre e fazer JOIN
             for csv_path in csvs_encontrados:
@@ -113,7 +113,7 @@ class GeradorConsolidadosPandas:
             com_operadora = (df_consolidado['RAZAO_SOCIAL'] != 'N/L').sum()
             sem_operadora = total - com_operadora
             
-            print(f"    ✓ {total:,} registros consolidados ({com_operadora:,} com operadora)")
+            print(f"    [OK] {total:,} registros consolidados ({com_operadora:,} com operadora)")
             
             # 4. Aplicar lógica de negócio do ProcessadorDemonstracoes
             print("\n    Gerando arquivos finais...")
@@ -149,10 +149,10 @@ class GeradorConsolidadosPandas:
             df_sinistros_sem_deducoes_formatado_br = self._formatar_valores_brasileiros(df_sinistros_sem_deducoes_formatado)
             
             df_sinistros_formatado_br.to_csv(arquivo_com_deducoes, sep=';', index=False, encoding='utf-8-sig')
-            print(f"      ✓ {os.path.basename(arquivo_com_deducoes)} ({len(df_sinistros_formatado):,} registros)")
+            print(f"      [OK] {os.path.basename(arquivo_com_deducoes)} ({len(df_sinistros_formatado):,} registros)")
             
             df_sinistros_sem_deducoes_formatado_br.to_csv(arquivo_sem_deducoes, sep=';', index=False, encoding='utf-8-sig')
-            print(f"      ✓ {os.path.basename(arquivo_sem_deducoes)} ({len(df_sinistros_sem_deducoes_formatado):,} registros)")
+            print(f"      [OK] {os.path.basename(arquivo_sem_deducoes)} ({len(df_sinistros_sem_deducoes_formatado):,} registros)")
             
             # 6. Gerar ZIP com os 2 arquivos + log
             print("\n    Gerando arquivo ZIP...")
@@ -166,7 +166,7 @@ class GeradorConsolidadosPandas:
                 if arquivo_log and os.path.exists(arquivo_log):
                     zipf.write(arquivo_log, os.path.basename(arquivo_log))
             
-            print(f"    ✓ {os.path.basename(arquivo_zip)}")
+            print(f"    [OK] {os.path.basename(arquivo_zip)}")
             
             # 7. Remover CSVs individuais (manter apenas ZIP)
             try:
@@ -199,12 +199,20 @@ class GeradorConsolidadosPandas:
     def _carregar_operadoras_dataframe(self, diretorio: str) -> pd.DataFrame:
         """Carrega operadoras ativas e canceladas dos CSVs, priorizando ativas.
         
+        Procura em dois lugares:
+        1. /operadoras/operadoras_ativas.csv (de operadoras_ativas.zip)
+        2. /operadoras/operadoras_canceladas.csv (de operadoras_canceladas.zip)
+        3. CSVs diretos em /operadoras ou /downloads/operadoras
+        
         Args:
             diretorio: Diretório raiz com arquivos extraídos
             
         Returns:
             DataFrame com operadoras consolidadas (sem duplicatas)
         """
+        # Primeiro, tenta processar operadoras extraídas
+        self._processar_operadoras_extraidas(diretorio)
+        
         # Buscar em múltiplos locais possíveis
         caminhos_possiveis = [
             os.path.join(diretorio, "operadoras"),
@@ -241,7 +249,7 @@ class GeradorConsolidadosPandas:
                 ativas.columns = ativas.columns.str.lower().str.strip()
                 ativas['status'] = 'ATIVA'
                 dfs.append(ativas)
-                logger.info(f"✓ {len(ativas)} operadoras ativas carregadas")
+                logger.info(f"[OK] {len(ativas)} operadoras ativas carregadas")
             except Exception as e:
                 logger.error(f"Erro ao carregar operadoras ativas: {e}")
         
@@ -253,7 +261,7 @@ class GeradorConsolidadosPandas:
                 canceladas.columns = canceladas.columns.str.lower().str.strip()
                 canceladas['status'] = 'CANCELADA'
                 dfs.append(canceladas)
-                logger.info(f"✓ {len(canceladas)} operadoras canceladas carregadas")
+                logger.info(f"[OK] {len(canceladas)} operadoras canceladas carregadas")
             except Exception as e:
                 logger.error(f"Erro ao carregar operadoras canceladas: {e}")
         
@@ -263,19 +271,143 @@ class GeradorConsolidadosPandas:
         # Concatenar e consolidar
         operadoras = pd.concat(dfs, ignore_index=True)
         
+        # Encontrar a coluna de registro ANS (pode ter vários nomes)
+        coluna_reg = None
+        for coluna_possivel in ['registro_operadora', 'reg_ans', 'registro_ans', 'registro ans', 'registerans', 'registro_anss', 'Registro ANS']:
+            if coluna_possivel in operadoras.columns:
+                coluna_reg = coluna_possivel
+                break
+        
+        if coluna_reg is None:
+            logger.error(f"Nenhuma coluna de Registro ANS encontrada. Colunas disponíveis: {operadoras.columns.tolist()}")
+            return None
+        
+        # Renomear para 'reg_ans' se não tiver esse nome
+        if coluna_reg != 'reg_ans':
+            operadoras.rename(columns={coluna_reg: 'reg_ans'}, inplace=True)
+        
         # Converter REG_ANS para Int64 (nullable integer) para match correto
         operadoras['reg_ans'] = pd.to_numeric(
             operadoras['reg_ans'], 
             errors='coerce'
         ).astype('Int64')
         
-        # Remover duplicatas, priorizando ativas (sort coloca ATIVA antes de CANCELADA)
-        operadoras = operadoras.sort_values('status')
-        operadoras = operadoras.drop_duplicates(subset=['reg_ans'], keep='first')
+        # Manter TODOS os operadoras (ativas E canceladas), sem descartar duplicatas por reg_ans
+        # Isso garante que operadoras com múltiplos status sejam preservadas
+        # (não faz drop_duplicates com subset=['reg_ans'])
         
-        logger.info(f"✓ Total de {len(operadoras)} operadoras únicas (após consolidação)")
+        logger.info(f"[OK] Total de {len(operadoras)} operadoras unicas (apos consolidacao)")
         
         return operadoras
+    
+    def _processar_operadoras_extraidas(self, diretorio: str) -> None:
+        """Processa CSVs de operadoras extraídas dos ZIPs.
+        
+        Quando operadoras_ativas.zip e operadoras_canceladas.zip são extraídos,
+        geram estruturas como:
+            /operadoras/YYYY/MM/DD/operadoras_ativas.csv
+            /operadoras/YYYY/MM/DD/operadoras_canceladas.csv
+        
+        Também procura por CSVs baixados diretamente:
+            /arquivos_trimestres/operadoras/Relatorio_cadop.csv
+            /arquivos_trimestres/operadoras/Relatorio_cadop_canceladas.csv
+        
+        Consolida tudo em:
+            /operadoras/operadoras_ativas.csv
+            /operadoras/operadoras_canceladas.csv
+        
+        Args:
+            diretorio: Diretório raiz
+        """
+        # Procurar em múltiplos locais possíveis
+        pastas_possiveis = [
+            os.path.join(diretorio, "arquivos_trimestres", "operadoras"),
+            os.path.join(diretorio, "operadoras"),
+        ]
+        
+        pasta_operadoras = None
+        for pasta in pastas_possiveis:
+            if os.path.exists(pasta):
+                pasta_operadoras = pasta
+                logger.debug(f"Pasta de operadoras encontrada em: {pasta}")
+                break
+        
+        if not pasta_operadoras:
+            logger.debug("Pasta de operadoras não encontrada em nenhum local, pulando processamento")
+            return
+        
+        # Buscar recursivamente por CSVs de operadoras
+        operadoras_ativas_lista = []
+        operadoras_canceladas_lista = []
+        
+        for raiz, _, arquivos in os.walk(pasta_operadoras):
+            for arquivo in arquivos:
+                if arquivo == 'Relatorio_cadop.csv':
+                    caminho = os.path.join(raiz, arquivo)
+                    try:
+                        df = pd.read_csv(caminho, sep=';', encoding='utf-8-sig')
+                        operadoras_ativas_lista.append(df)
+                        logger.debug(f"Carregado: {caminho} ({len(df)} registros)")
+                    except Exception as e:
+                        logger.warning(f"Erro ao carregar {caminho}: {e}")
+                
+                elif arquivo == 'Relatorio_cadop_canceladas.csv':
+                    caminho = os.path.join(raiz, arquivo)
+                    try:
+                        df = pd.read_csv(caminho, sep=';', encoding='utf-8-sig')
+                        operadoras_canceladas_lista.append(df)
+                        logger.debug(f"Carregado: {caminho} ({len(df)} registros)")
+                    except Exception as e:
+                        logger.warning(f"Erro ao carregar {caminho}: {e}")
+        
+        # Pasta de destino dos consolidados (sempre em /operadoras)
+        pasta_consolidados = os.path.join(diretorio, "operadoras")
+        os.makedirs(pasta_consolidados, exist_ok=True)
+        logger.debug(f"Pasta de consolidados criada/verificada: {pasta_consolidados}")
+        
+        # Consolidar e salvar ativas
+        if operadoras_ativas_lista:
+            df_ativas = pd.concat(operadoras_ativas_lista, ignore_index=True)
+            # Tentar deduplica com diferentes nomes de coluna
+            colunas_chave = ['Registro ANS', 'registro ans', 'REGISTRO ANS', 'Registro']
+            coluna_usada = None
+            for col in colunas_chave:
+                if col in df_ativas.columns:
+                    coluna_usada = col
+                    df_ativas = df_ativas.drop_duplicates(subset=[col], keep='first')
+                    break
+            
+            if coluna_usada is None:
+                # Se não encontrou coluna chave, apenas remove duplicatas globais
+                df_ativas = df_ativas.drop_duplicates(keep='first')
+                logger.debug("Deduplicacao realizada sem coluna chave")
+            
+            caminho_saida = os.path.join(pasta_consolidados, 'operadoras_ativas.csv')
+            df_ativas.to_csv(caminho_saida, sep=';', index=False, encoding='utf-8-sig')
+            logger.info(f"[OK] Consolidado: {len(df_ativas)} operadoras ativas")
+            logger.debug(f"Arquivo salvo em: {caminho_saida}")
+        
+        # Consolidar e salvar canceladas
+        if operadoras_canceladas_lista:
+            df_canceladas = pd.concat(operadoras_canceladas_lista, ignore_index=True)
+            # Tentar deduplicar com diferentes nomes de coluna
+            colunas_chave = ['Registro ANS', 'registro ans', 'REGISTRO ANS', 'Registro']
+            coluna_usada = None
+            for col in colunas_chave:
+                if col in df_canceladas.columns:
+                    coluna_usada = col
+                    df_canceladas = df_canceladas.drop_duplicates(subset=[col], keep='first')
+                    break
+            
+            if coluna_usada is None:
+                # Se não encontrou coluna chave, apenas remove duplicatas globais
+                df_canceladas = df_canceladas.drop_duplicates(keep='first')
+                logger.debug("Deduplicacao realizada sem coluna chave")
+            
+            caminho_saida = os.path.join(pasta_consolidados, 'operadoras_canceladas.csv')
+            df_canceladas.to_csv(caminho_saida, sep=';', index=False, encoding='utf-8-sig')
+            logger.info(f"[OK] Consolidado: {len(df_canceladas)} operadoras canceladas")
+            logger.debug(f"Arquivo salvo em: {caminho_saida}")
     
     def _listar_csvs_extraidos(self, diretorio: str) -> list:
         """Lista todos os CSVs extraídos dos ZIPs.
@@ -300,7 +432,7 @@ class GeradorConsolidadosPandas:
                     if f.endswith('.csv')
                 ]
                 if csvs:
-                    logger.info(f"✓ Encontrados {len(csvs)} CSVs em {base_dir}")
+                    logger.info(f"[OK] Encontrados {len(csvs)} CSVs em {base_dir}")
                     return csvs
         
         return []
@@ -373,7 +505,7 @@ class GeradorConsolidadosPandas:
                 logger.warning(f"Coluna de registro ANS não encontrada em {os.path.basename(caminho)}")
                 logger.warning(f"Colunas disponíveis: {list(df.columns)}")
             
-            logger.info(f"✓ {len(df)} registros carregados de {os.path.basename(caminho)}")
+            logger.info(f"[OK] {len(df)} registros carregados de {os.path.basename(caminho)}")
             return df
         
         except Exception as e:
@@ -413,7 +545,7 @@ class GeradorConsolidadosPandas:
                             errors='coerce'
                         ).astype('Int64')
                     
-                    logger.info(f"✓ {len(df)} registros carregados de {nome_arquivo}")
+                    logger.info(f"[OK] {len(df)} registros carregados de {nome_arquivo}")
                     return df
                 
                 except Exception as e:
@@ -501,15 +633,21 @@ class GeradorConsolidadosPandas:
             if col in df.columns:
                 # Se for objeto (string), fazer conversão
                 if df[col].dtype == 'object':
-                    # Remover separadores de milhares e trocar vírgula por ponto
+                    # Remover separadores de milhares e trocar virgula por ponto
                     df[col] = df[col].astype(str).str.replace('.', '', regex=False).str.replace(',', '.', regex=False)
                     df[col] = pd.to_numeric(df[col], errors='coerce')
-                # Se já for numérico, não fazer nada
+                elif not pd.api.types.is_numeric_dtype(df[col]):
+                    # Se nao for numerico, converter
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
         
-        # Calcular valor_trimestre se não existir
+        # Calcular valor_trimestre se nao existir
         if 'valor_trimestre' not in df.columns:
             if 'vl_saldo_inicial' in df.columns and 'vl_saldo_final' in df.columns:
-                df['valor_trimestre'] = df['vl_saldo_final'] - df['vl_saldo_inicial']
+                # Garantir que ambas sao numericas antes de subtrair
+                if pd.api.types.is_numeric_dtype(df['vl_saldo_final']) and pd.api.types.is_numeric_dtype(df['vl_saldo_inicial']):
+                    df['valor_trimestre'] = df['vl_saldo_final'] - df['vl_saldo_inicial']
+                else:
+                    logger.warning("Colunas vl_saldo_final ou vl_saldo_inicial nao estao numericas. Pulando calculo de valor_trimestre")
         
         return df
     

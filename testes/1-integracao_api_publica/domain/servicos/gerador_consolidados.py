@@ -242,7 +242,7 @@ class GeradorConsolidados:
                 for future in as_completed(futures):
                     nome, sucesso = future.result()
                     resultados[nome] = sucesso
-                    status = "✓" if sucesso else "✗"
+                    status = "[OK]" if sucesso else "[ERRO]"
                     logger.info(f"{status} Consolidado '{nome}' processado")
             
             logger.info(f"Todos os {len(resultados)} consolidados processados (paralelo)")

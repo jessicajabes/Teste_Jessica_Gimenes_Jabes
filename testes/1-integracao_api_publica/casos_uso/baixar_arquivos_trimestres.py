@@ -68,9 +68,9 @@ class BaixarArquivosTrimestres:
                     sucesso = self.repositorio_api.baixar_arquivo(arquivo, self.diretorio_destino)
                     if sucesso:
                         arquivos_baixados.append(arquivo)
-                        print(f"    ✓ {arquivo.nome}")
+                        print(f"    [OK] {arquivo.nome}")
                     else:
-                        print(f"    ✗ Falha ao baixar {arquivo.nome}")
+                        print(f"    [ERRO] Falha ao baixar {arquivo.nome}")
         
         finally:
             # Fechar conexão se foi criada internamente

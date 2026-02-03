@@ -54,8 +54,9 @@ class GerarDespesasAgregadas:
         print("VALIDAÇÃO E AGREGAÇÃO DE DESPESAS")
         print("=" * 60)
 
-        # Carregar operadoras
-        operadoras = CarregadorDados.carregar_operadoras(DATABASE_URL, self.logger)
+        # Carregar operadoras DOS CSVs (ativas + canceladas)
+        diretorio_downloads = os.path.dirname(self.diretorio_dados)  # ../downloads/1-trimestres_consolidados -> ../downloads
+        operadoras = CarregadorDados.carregar_operadoras_de_csvs(diretorio_downloads, self.logger)
 
         # Processar arquivo sem deduções
         agreg_sem = None
