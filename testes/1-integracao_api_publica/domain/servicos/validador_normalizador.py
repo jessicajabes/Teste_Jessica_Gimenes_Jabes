@@ -85,9 +85,11 @@ class ValidadorNormalizador:
             campos_vazios.append('Razão Social/DESCRICAO')
         
         if campos_vazios:
+            mensagem = f"Campos vazios: {', '.join(campos_vazios)}"
+            logger.warning(f"Validação de campos obrigatórios falhou: {mensagem}")
             return {
                 'tem_erro': True,
-                'mensagem': f"Campos vazios: {', '.join(campos_vazios)}"
+                'mensagem': mensagem
             }
         
         return {
@@ -108,7 +110,14 @@ class ValidadorNormalizador:
             bool indicando se o registro é válido
         """
         campos_obrigatorios = ['CD_CONTA_CONTABIL', 'VL_SALDO_FINAL', 'VL_SALDO_INICIAL']
-        return all(campo in registro for campo in campos_obrigatorios)
+        campos_encontrados = [campo for campo in campos_obrigatorios if campo in registro]
+        eh_valido = all(campo in registro for campo in campos_obrigatorios)
+        
+        if not eh_valido:
+            campos_faltantes = [campo for campo in campos_obrigatorios if campo not in registro]
+            logger.warning(f"Registro inválido: campos faltantes {campos_faltantes}")
+        
+        return eh_valido
     
     @staticmethod
     def calcular_valor_arquivo(dados: List[Dict]) -> float:

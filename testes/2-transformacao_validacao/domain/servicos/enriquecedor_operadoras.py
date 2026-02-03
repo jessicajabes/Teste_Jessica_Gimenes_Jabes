@@ -23,11 +23,15 @@ class EnriquecedorOperadoras:
         if operadoras.empty:
             return mapa
         
+        # Garantir que reg_ans seja inteiro para match correto
+        operadoras_copy = operadoras.copy()
+        operadoras_copy["reg_ans"] = pd.to_numeric(operadoras_copy["reg_ans"], errors='coerce').astype('Int64')
+        
         # Agrupar por reg_ans para detectar duplicidades
-        grupos = operadoras.groupby("reg_ans")
+        grupos = operadoras_copy.groupby("reg_ans")
         
         for reg_ans, grupo in grupos:
-            reg_ans_str = str(reg_ans).strip()
+            reg_ans_str = str(int(reg_ans))  # Converter inteiro para string sem espaços ou pontos
             
             # Filtrar registros ativos
             ativos = grupo[grupo["status"].str.upper() == "ATIVA"]
@@ -114,14 +118,20 @@ class EnriquecedorOperadoras:
         ufs = []
 
         for idx, row in df.iterrows():
-            reg_ans = str(row["REGISTROANS"]).strip() if pd.notna(row["REGISTROANS"]) else None
+            reg_ans = row["REGISTROANS"]
             
-            if not reg_ans or reg_ans in ["", "N/L", "nan", "None"]:
+            # Converter para inteiro para match correto com mapa
+            try:
+                reg_ans_int = int(reg_ans) if pd.notna(reg_ans) else None
+            except (ValueError, TypeError):
+                reg_ans_int = None
+            
+            if reg_ans_int is None:
                 modalidades.append("N/L")
                 ufs.append("N/L")
                 continue
 
-            info = mapa_reg_ans.get(reg_ans)
+            info = mapa_reg_ans.get(str(reg_ans_int))
             
             if info is None:
                 if logger:

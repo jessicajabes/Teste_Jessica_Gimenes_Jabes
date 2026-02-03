@@ -6,7 +6,7 @@ load_dotenv()
 API_BASE_URL = os.getenv('API_BASE_URL', 'https://dadosabertos.ans.gov.br/FTP/PDA/')
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://jessica:1234@db:55432/intuitive_care')
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
-BATCH_SIZE = int(os.getenv('BATCH_SIZE', '1000'))
+BATCH_SIZE = int(os.getenv('BATCH_SIZE', '5000'))  # Aumentado de 1000 para 5000 para melhor performance
 
 # Diretórios de trabalho (sincronizados via volume Docker)
 DIRETORIO_DOWNLOADS = os.getenv('DIRETORIO_DOWNLOADS', '/app/downloads')

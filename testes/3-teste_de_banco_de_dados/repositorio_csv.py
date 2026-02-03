@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+import numpy as np
 from typing import List, Dict
 from config import DIRETORIO_ERROS
 from infraestrutura.logger import get_logger
@@ -7,7 +8,7 @@ from domain.servicos import ProcessadorArquivos, GeradorConsolidados, ValidadorN
 
 logger = get_logger('RepositorioBancoDados')
 
-class RepositorioBancoDados:
+class RepositorioCsv:
     def __init__(self, url_conexao: str):
         self.url_conexao = url_conexao
         self.conexao = None
@@ -386,117 +387,234 @@ class RepositorioBancoDados:
                 self.conexao.rollback()
             return 0
 
+    def _carregar_operadoras_dataframe(self) -> pd.DataFrame:
+        """Carrega operadoras de CSV e retorna DataFrame agregado com lógica de duplicidade."""
+        try:
+            from casos_uso.carregar_operadoras import CarregarOperadoras
+            
+            carregador = CarregarOperadoras()
+            resultado = carregador.executar()
+            
+            if not (resultado['ativas'] or resultado['canceladas']):
+                logger.warning("Nenhuma operadora carregada")
+                return pd.DataFrame()
+            
+            dfs = []
+            
+            # Carregar operadoras ativas
+            if resultado['ativas']:
+                df_ativas = pd.read_csv(
+                    carregador.arquivo_ativas,
+                    sep=';',
+                    encoding='utf-8',
+                )
+                df_ativas['STATUS'] = 'ATIVA'
+                dfs.append(df_ativas)
+            
+            # Carregar operadoras canceladas
+            if resultado['canceladas']:
+                df_canceladas = pd.read_csv(
+                    carregador.arquivo_canceladas,
+                    sep=';',
+                    encoding='utf-8',
+                )
+                df_canceladas['STATUS'] = 'CANCELADA'
+                dfs.append(df_canceladas)
+            
+            if not dfs:
+                return pd.DataFrame()
+            
+            # Concatenar todos os DataFrames
+            df_operadoras = pd.concat(dfs, ignore_index=True)
+            
+            # Normalizar colunas
+            df_operadoras.columns = df_operadoras.columns.str.upper()
+            
+            # Garantir que REG_ANS existe e é inteiro para match correto
+            if 'REG_ANS' not in df_operadoras.columns:
+                logger.error("Coluna REG_ANS não encontrada em operadoras")
+                return pd.DataFrame()
+            
+            # Converter para int64 para garantir match correto no merge
+            df_operadoras['REG_ANS'] = pd.to_numeric(df_operadoras['REG_ANS'], errors='coerce').astype('Int64')
+            
+            # Agregar operadoras (lógica similar ao SQL)
+            # Contar qtd total e qtd ativas por reg_ans
+            df_agg = df_operadoras.groupby('REG_ANS').agg(
+                qtd_operadoras=('REG_ANS', 'count'),
+                qtd_ativas=('STATUS', lambda x: (x.str.upper() == 'ATIVA').sum()),
+                cnpj_ativo=('CNPJ', lambda x: x[df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA'].iloc[0] if any(df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA') else None),
+                cnpj=('CNPJ', 'first'),
+                razao_social_ativa=('RAZAO_SOCIAL', lambda x: x[df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA'].iloc[0] if any(df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA') else None),
+                razao_social=('RAZAO_SOCIAL', 'first'),
+                modalidade_ativa=('MODALIDADE', lambda x: x[df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA'].iloc[0] if any(df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA') else None),
+                modalidade=('MODALIDADE', 'first'),
+                uf_ativo=('UF', lambda x: x[df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA'].iloc[0] if any(df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA') else None),
+                uf=('UF', 'first'),
+                status_ativo=('STATUS', lambda x: x[df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA'].iloc[0] if any(df_operadoras.loc[x.index, 'STATUS'].str.upper() == 'ATIVA') else None),
+                status=('STATUS', 'first'),
+            ).reset_index()
+            
+            logger.info(f"Operadoras carregadas: {len(df_agg)} registros únicos")
+            return df_agg
+            
+        except Exception as e:
+            logger.error(f"Erro ao carregar operadoras: {e}")
+            return pd.DataFrame()
+    
     def gerar_csv_consolidado_com_join(self, diretorio_saida: str, arquivo_log_sessao: str = None) -> bool:
-        """Gera CSVs consolidados fazendo JOIN com operadoras no banco"""
+        """Gera CSVs consolidados fazendo JOIN com operadoras no Python (pandas)."""
         if not self.conexao:
             return False
         
         try:
             import os
             from sqlalchemy import create_engine
+            from datetime import datetime
             
-            # Garantir que o diretório existe e tem permissões
-            os.makedirs(diretorio_saida, mode=0o777, exist_ok=True)
-            
-            # Tentar dar permissão total à pasta
-            try:
-                os.chmod(diretorio_saida, 0o777)
-            except:
-                pass  # Ignorar erros de chmod
+            # Garantir que o diretório existe
             os.makedirs(diretorio_saida, exist_ok=True)
             
-            # Converter URL de conexão PostgreSQL para SQLAlchemy
-            # De: postgresql://user:password@host:port/dbname
-            # Para: postgresql+psycopg2://user:password@host:port/dbname
+            # Converter URL de conexão para SQLAlchemy
             url_sqlalchemy = self.url_conexao
             if url_sqlalchemy.startswith('postgresql://'):
                 url_sqlalchemy = url_sqlalchemy.replace('postgresql://', 'postgresql+psycopg2://', 1)
             
-            # Criar engine SQLAlchemy para read_sql_query
+            # Criar engine SQLAlchemy
             try:
                 engine = create_engine(url_sqlalchemy, echo=False)
             except Exception as e_engine:
                 logger.debug(f"Erro ao criar engine com {url_sqlalchemy}: {e_engine}")
-                # Tentar com URL original
                 engine = create_engine(self.url_conexao)
             
-            # Query com LEFT JOIN para enriquecer com dados de operadoras
-            # Se houver duplicidade, verifica quantas têm status ATIVO
-            # Se apenas uma for ATIVO, usa ela; senão marca como DUPLICIDADE
+            # Query simples: pegar apenas demonstrações do banco
             query = """
-                WITH operadoras_agregadas AS (
-                    SELECT
-                        reg_ans,
-                        COUNT(*) AS qtd_operadoras,
-                        COUNT(*) FILTER (WHERE UPPER(status) = 'ATIVO') AS qtd_ativas,
-                        MAX(CASE WHEN UPPER(status) = 'ATIVO' THEN cnpj ELSE NULL END) AS cnpj_ativo,
-                        MAX(cnpj) AS cnpj,
-                        MAX(CASE WHEN UPPER(status) = 'ATIVO' THEN razao_social ELSE NULL END) AS razao_social_ativa,
-                        MAX(razao_social) AS razao_social,
-                        MAX(CASE WHEN UPPER(status) = 'ATIVO' THEN modalidade ELSE NULL END) AS modalidade_ativa,
-                        MAX(modalidade) AS modalidade,
-                        MAX(CASE WHEN UPPER(status) = 'ATIVO' THEN uf ELSE NULL END) AS uf_ativo,
-                        MAX(uf) AS uf,
-                        MAX(CASE WHEN UPPER(status) = 'ATIVO' THEN status ELSE NULL END) AS status_ativo,
-                        MAX(status) AS status
-                    FROM operadoras
-                    GROUP BY reg_ans
-                )
                 SELECT 
-                    d.data,
-                    d.reg_ans,
-                    d.cd_conta_contabil,
-                    d.descricao,
-                    d.vl_saldo_inicial,
-                    d.vl_saldo_final,
-                    d.valor_trimestre,
-                    d.trimestre,
-                    d.ano,
-                    CASE
-                        WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 AND o.qtd_ativas = 1 THEN COALESCE(o.cnpj_ativo, 'N/L')
-                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
-                        ELSE COALESCE(o.cnpj, 'N/L')
-                    END as cnpj,
-                    CASE
-                        WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 AND o.qtd_ativas = 1 THEN COALESCE(o.razao_social_ativa, 'N/L')
-                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
-                        ELSE COALESCE(o.razao_social, 'N/L')
-                    END as razao_social_operadora,
-                    CASE
-                        WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 AND o.qtd_ativas = 1 THEN COALESCE(o.modalidade_ativa, 'N/L')
-                        WHEN o.qtd_operadoras > 1 THEN 'N/L'
-                        ELSE COALESCE(o.modalidade, 'N/L')
-                    END as modalidade,
-                    CASE
-                        WHEN o.reg_ans IS NULL THEN 'N/L'
-                        WHEN o.qtd_operadoras > 1 AND o.qtd_ativas = 1 THEN COALESCE(o.uf_ativo, 'N/L')
-                        WHEN o.qtd_operadoras > 1 THEN 'N/L'
-                        ELSE COALESCE(o.uf, 'N/L')
-                    END as uf,
-                    CASE 
-                        WHEN o.reg_ans IS NULL THEN 'NAO_LOCALIZADO'
-                        WHEN o.qtd_operadoras > 1 AND o.qtd_ativas = 1 THEN COALESCE(o.status_ativo, 'ATIVO')
-                        WHEN o.qtd_operadoras > 1 THEN 'REGISTRO DE OPERADORA EM DUPLICIDADE'
-                        ELSE COALESCE(o.status, 'DESCONHECIDO')
-                    END as status_operadora
-                FROM demonstracoes_contabeis_temp d
-                LEFT JOIN operadoras_agregadas o ON d.reg_ans = o.reg_ans
-                ORDER BY d.ano, d.trimestre, d.reg_ans, d.cd_conta_contabil
+                    data,
+                    reg_ans,
+                    cd_conta_contabil,
+                    descricao,
+                    vl_saldo_inicial,
+                    vl_saldo_final,
+                    valor_trimestre,
+                    trimestre,
+                    ano
+                FROM demonstracoes_contabeis_temp
+                ORDER BY ano, trimestre, reg_ans, cd_conta_contabil
             """
             
-            # Ler dados do banco usando SQLAlchemy
+            # Ler demonstrações do banco
             df = pd.read_sql_query(query, engine)
             
             if df.empty:
                 logger.warning("Nenhum dado encontrado para gerar CSV")
                 return False
+            
+            # Carregar operadoras em DataFrame
+            print("  Carregando operadoras...")
+            df_operadoras = self._carregar_operadoras_dataframe()
+            
+            if df_operadoras.empty:
+                logger.warning("Nenhuma operadora carregada, continuando sem enriquecimento")
+                # Criar colunas vazias
+                df['cnpj'] = 'N/L'
+                df['razao_social_operadora'] = 'N/L'
+                df['modalidade'] = 'N/L'
+                df['uf'] = 'N/L'
+                df['status_operadora'] = 'NAO_LOCALIZADO'
+            else:
+                # Fazer LEFT JOIN usando pandas (mantendo ambos como inteiros)
+                print("  Fazendo JOIN com operadoras...")
+                
+                # Converter REGISTRO ANS para INT64 se estiver como string
+                if df['reg_ans'].dtype == 'object':
+                    df['reg_ans'] = pd.to_numeric(df['reg_ans'], errors='coerce').astype('Int64')
+                
+                df = df.merge(
+                    df_operadoras,
+                    left_on='reg_ans',
+                    right_on='REG_ANS',
+                    how='left'
+                )
+                
+                # Aplicar lógica de validação (equivalente aos CASE do SQL) de forma vetorizada
+                reg_ans_missing = df['REG_ANS'].isna()
+                dup = df['qtd_operadoras'] > 1
+                dup_one_active = dup & (df['qtd_ativas'] == 1)
+                dup_other = dup & ~dup_one_active
 
-            # Registrar erros quando não há match ou há duplicidade na operadora
+                df['cnpj'] = np.where(
+                    reg_ans_missing,
+                    'N/L',
+                    np.where(
+                        dup_one_active,
+                        df['cnpj_ativo'].fillna('N/L'),
+                        np.where(
+                            dup_other,
+                            'REGISTRO DE OPERADORA EM DUPLICIDADE',
+                            df['cnpj'].fillna('N/L')
+                        )
+                    )
+                )
+
+                df['razao_social_operadora'] = np.where(
+                    reg_ans_missing,
+                    'N/L',
+                    np.where(
+                        dup_one_active,
+                        df['razao_social_ativa'].fillna('N/L'),
+                        np.where(
+                            dup_other,
+                            'REGISTRO DE OPERADORA EM DUPLICIDADE',
+                            df['razao_social'].fillna('N/L')
+                        )
+                    )
+                )
+
+                df['modalidade'] = np.where(
+                    reg_ans_missing,
+                    'N/L',
+                    np.where(
+                        dup_one_active,
+                        df['modalidade_ativa'].fillna('N/L'),
+                        np.where(
+                            dup_other,
+                            'N/L',
+                            df['modalidade'].fillna('N/L')
+                        )
+                    )
+                )
+
+                df['uf'] = np.where(
+                    reg_ans_missing,
+                    'N/L',
+                    np.where(
+                        dup_one_active,
+                        df['uf_ativo'].fillna('N/L'),
+                        np.where(
+                            dup_other,
+                            'N/L',
+                            df['uf'].fillna('N/L')
+                        )
+                    )
+                )
+
+                df['status_operadora'] = np.where(
+                    reg_ans_missing,
+                    'NAO_LOCALIZADO',
+                    np.where(
+                        dup_one_active,
+                        df['status_ativo'].fillna('ATIVO'),
+                        np.where(
+                            dup_other,
+                            'REGISTRO DE OPERADORA EM DUPLICIDADE',
+                            df['status'].fillna('DESCONHECIDO')
+                        )
+                    )
+                )
+            
+            # Registrar erros quando não há match ou há duplicidade
             try:
-                from datetime import datetime
                 erros_join = []
                 mascara_erro = df['razao_social_operadora'].isin(['N/L', 'REGISTRO DE OPERADORA EM DUPLICIDADE'])
                 if mascara_erro.any():
@@ -516,7 +634,7 @@ class RepositorioBancoDados:
                             'ano': linha.get('ano'),
                             'motivo_erro': motivo,
                             'tipo_erro': 'JOIN_OPERADORA',
-                            'origem': 'Consolidação via JOIN'
+                            'origem': 'Consolidação via JOIN (Python)'
                         })
                     if erros_join:
                         self._gerar_csv_erros(erros_join)

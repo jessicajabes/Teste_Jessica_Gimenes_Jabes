@@ -9,11 +9,10 @@ from typing import Dict, Tuple
 from config import DATABASE_URL, BATCH_SIZE
 from domain.servicos import ProcessadorArquivos, GeradorConsolidados
 from infraestrutura.repositorio_arquivo_local import RepositorioArquivoLocal
-from infraestrutura.repositorio_banco_dados import RepositorioBancoDados
+from infraestrutura.repositorio_csv import RepositorioCsv
 from infraestrutura.gerenciador_checkpoint import GerenciadorCheckpoint
 from infraestrutura.processador_em_lotes import ProcessadorEmLotes
 from infraestrutura.logger import get_logger
-from casos_uso.carregar_operadoras import CarregarOperadoras
 
 logger = get_logger('CarregarDadosBanco')
 
@@ -27,10 +26,9 @@ class CarregarDadosBanco:
         repo_banco=None,
     ):
         self.repo_arquivo = repo_arquivo or RepositorioArquivoLocal()
-        self.repo_banco = repo_banco or RepositorioBancoDados(DATABASE_URL)
+        self.repo_banco = repo_banco or RepositorioCsv(DATABASE_URL)
         self.gerenciador_checkpoint = GerenciadorCheckpoint()
         self.processador_lotes = ProcessadorEmLotes(tamanho_lote=BATCH_SIZE)
-        self.carregador_operadoras = CarregarOperadoras()
         
         # Injetar serviços de domínio
         self.processador = ProcessadorArquivos()
@@ -43,47 +41,7 @@ class CarregarDadosBanco:
         print("Erro: Não foi possível conectar ao banco de dados")
         return False
     
-    def limpar_tabela_operadoras(self) -> None:
-        """Limpa a tabela de demonstrações contábeis."""
-        print("\n  Limpando tabela de operadoras...")
-        self.repo_banco.limpar_tabela_operadoras()
-        print("   Tabela limpa com sucesso!")    
-    
-    def carregar_operadoras(self) -> None:
-        """Carrega tabelas de operadoras no banco."""
-        print("\n📋 Carregando tabelas de operadoras...")
-        resultado_operadoras = self.carregador_operadoras.executar()
-        
-        if not (resultado_operadoras['ativas'] or resultado_operadoras['canceladas']):
-            logger.warning("Nenhuma tabela de operadora foi carregada com sucesso")
-            print("    Aviso: Operadoras não foram carregadas. Continuando sem enriquecimento...")
-            return
-        
-        print("   Inserindo operadoras no banco de dados...")
-        
-        if resultado_operadoras['ativas']:
-            import pandas as pd
-            df_ativas = pd.read_csv(
-                self.carregador_operadoras.arquivo_ativas,
-                sep=';',
-                encoding='utf-8',
-            )
-            df_ativas['STATUS'] = 'ATIVA'
-            dados_ativas = df_ativas.to_dict('records')
-            total_ativas = self.repo_banco.inserir_operadoras(dados_ativas)
-            print(f"     {total_ativas} operadoras ativas inseridas")
-        
-        if resultado_operadoras['canceladas']:
-            import pandas as pd
-            df_canceladas = pd.read_csv(
-                self.carregador_operadoras.arquivo_canceladas,
-                sep=';',
-                encoding='utf-8',
-            )
-            df_canceladas['STATUS'] = 'CANCELADA'
-            dados_canceladas = df_canceladas.to_dict('records')
-            total_canceladas = self.repo_banco.inserir_operadoras(dados_canceladas)
-            print(f"     {total_canceladas} operadoras canceladas inseridas")
+    # Métodos de operadoras removidos - agora processadas diretamente no Python durante a consolidação
     
     def limpar_tabela_demonstracoes(self) -> None:
         """Limpa a tabela de demonstrações contábeis."""
@@ -145,13 +103,14 @@ class CarregarDadosBanco:
                         .replace('#', '.')
                     )
                     
-                    # Processar em lotes
+                    # Processar em lotes (SEM checkpoint frequente para máxima performance)
                     resultado = self.processador_lotes.processar_em_lotes(
                         registros=dados,
                         funcao_inserir=self.repo_banco.inserir_demonstracoes,
                         gerenciador_checkpoint=self.gerenciador_checkpoint,
                         arquivo_atual=nome_arquivo,
                         registro_inicial=checkpoint.get("registro_atual", 0),
+                        atualizar_checkpoint=False  # Desabilitar checkpoint frequente para performance
                     )
                     
                     total_registros += resultado["registros_processados"]

@@ -75,7 +75,7 @@ class RepositorioOperadoras:
             erro_msg = f"Erro ao carregar operadoras ativas: {str(e)}"
             logger.error(erro_msg)
             resultado['erros'].append(erro_msg)
-            print(f"  ❌ {erro_msg}")
+            print(f"  XS {erro_msg}")
         
         try:
             resultado['canceladas'], resultado['total_canceladas'] = self._carregar_canceladas()
@@ -83,7 +83,7 @@ class RepositorioOperadoras:
             erro_msg = f"Erro ao carregar operadoras canceladas: {str(e)}"
             logger.error(erro_msg)
             resultado['erros'].append(erro_msg)
-            print(f"  ❌ {erro_msg}")
+            print(f"  X {erro_msg}")
         
         logger.info(
             f"Carregamento concluído - Ativas: {resultado['total_ativas']}, "
@@ -130,7 +130,7 @@ class RepositorioOperadoras:
         Returns:
             (sucesso: bool, total_registros: int)
         """
-        print("  📥 Buscando operadoras canceladas...")
+        print("  S Buscando operadoras canceladas...")
         
         # Deletar arquivo existente se houver
         if os.path.exists(self.arquivo_canceladas):

@@ -10,6 +10,7 @@ from config import DIRETORIO_DOWNLOADS
 class LoggerConfig:
     _logger = None
     _log_dir = os.path.join(DIRETORIO_DOWNLOADS, 'logs')
+    _arquivo_log_sessao = None
     
     @classmethod
     def get_logger(cls, nome: str = 'app') -> logging.Logger:
@@ -17,6 +18,11 @@ class LoggerConfig:
         if cls._logger is None:
             cls._configurar_logger(nome)
         return cls._logger
+    
+    @classmethod
+    def obter_arquivo_log_sessao(cls) -> str:
+        """Retorna o caminho do arquivo de log da sessão atual"""
+        return cls._arquivo_log_sessao
     
     @classmethod
     def _configurar_logger(cls, nome: str):
@@ -56,6 +62,17 @@ class LoggerConfig:
         except Exception as e:
             print(f"Aviso: Não foi possível criar handler de arquivo de log: {e}")
         
+        # Handler para arquivo de sessão (arquivo único por execução)
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            cls._arquivo_log_sessao = os.path.join(cls._log_dir, f'sessao_{timestamp}.log')
+            fh_sessao = logging.FileHandler(cls._arquivo_log_sessao, encoding='utf-8')
+            fh_sessao.setLevel(logging.DEBUG)
+            fh_sessao.setFormatter(formato_detalhado)
+            cls._logger.addHandler(fh_sessao)
+        except Exception as e:
+            print(f"Aviso: Não foi possível criar handler de log de sessão: {e}")
+        
         # Handler para console (menos detalhado)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
@@ -69,3 +86,7 @@ class LoggerConfig:
 def get_logger(nome: str = 'app') -> logging.Logger:
     """Função auxiliar para obter o logger"""
     return LoggerConfig.get_logger(nome)
+
+def obter_arquivo_log_sessao() -> str:
+    """Retorna o caminho do arquivo de log da sessão atual"""
+    return LoggerConfig.obter_arquivo_log_sessao()

@@ -2,11 +2,11 @@
 
 Orquestra:
 1. Configuração de logging
-2. Execução do pipeline de integração
+2. Execução do pipeline de integração (baixar e gerar consolidados)
 """
 
 from casos_uso.configurar_logging import ConfigurarLogging
-from casos_uso.gerar_arquivos_consolidados import GerarArquivosConsolidados
+from casos_uso.baixar_e_gerar_consolidados import BaixarEGerarConsolidados
 
 
 def principal():
@@ -14,9 +14,9 @@ def principal():
     # 1. Configurar logging (deve ser feito antes de qualquer outro import/log)
     ConfigurarLogging.executar()
     
-    # 2. Executar integração
-    gerar_consolidados = GerarArquivosConsolidados()
-    gerar_consolidados.executar()
+    # 2. Executar integração completa
+    pipeline = BaixarEGerarConsolidados()
+    pipeline.executar()
 
 
 if __name__ == '__main__':

@@ -13,7 +13,8 @@ class ProcessadorEmLotes:
         funcao_inserir: Callable,
         gerenciador_checkpoint,
         arquivo_atual: str,
-        registro_inicial: int = 0
+        registro_inicial: int = 0,
+        atualizar_checkpoint: bool = False  # Novo parâmetro para controlar checkpoint (melhor performance)
     ) -> Dict:
         
         registros_processados = 0
@@ -45,14 +46,15 @@ class ProcessadorEmLotes:
                     else:
                         registros_processados += len(lote)
 
-                    #  Atualizar checkpoint quando há sucesso (mesmo com 0 registros válidos)
-                    gerenciador_checkpoint.atualizar_checkpoint(
-                        arquivo=arquivo_atual,
-                        registro=fim,
-                        status="em_progresso",
-                        registros_processados=registros_processados,
-                        registros_erro=registros_com_erro
-                    )
+                    # Atualizar checkpoint APENAS se solicitado (reduz I/O de disco)
+                    if atualizar_checkpoint:
+                        gerenciador_checkpoint.atualizar_checkpoint(
+                            arquivo=arquivo_atual,
+                            registro=fim,
+                            status="em_progresso",
+                            registros_processados=registros_processados,
+                            registros_erro=registros_com_erro
+                        )
             
             except Exception as e:
                 logger.error(f"[FALHA] EXCEÇÃO ao processar lote {numero_lote} do arquivo {arquivo_atual}: {str(e)} - Registros não serão contabilizados como erro para permitir reprocessamento")
