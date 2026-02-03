@@ -324,12 +324,38 @@ class GeradorConsolidadosPandas:
             nome_arquivo = os.path.basename(caminho)
             import re
             match = re.match(r'(\d)T(\d{4})\.csv', nome_arquivo)
+            
             if match:
                 df['TRIMESTRE'] = f"{match.group(1)}T"
                 df['ANO'] = int(match.group(2))
                 logger.debug(f"Extraído do nome do arquivo: {match.group(1)}T/{match.group(2)}")
             else:
-                logger.warning(f"Não foi possível extrair TRIMESTRE/ANO do nome: {nome_arquivo}")
+                # Fallback: tentar extrair da coluna DATA
+                logger.debug(f"Tentando extrair TRIMESTRE/ANO da coluna DATA...")
+                if 'DATA' in df.columns:
+                    try:
+                        # Converter DATA para datetime
+                        df['DATA_TEMP'] = pd.to_datetime(df['DATA'], format='%d/%m/%Y', errors='coerce')
+                        
+                        # Extrair mês e calcular trimestre
+                        df['MES'] = df['DATA_TEMP'].dt.month
+                        df['TRIMESTRE'] = df['MES'].apply(lambda mes: f"{(mes - 1) // 3 + 1}T" if pd.notnull(mes) else None)
+                        df['ANO'] = df['DATA_TEMP'].dt.year
+                        
+                        # Remover colunas temporárias
+                        df = df.drop(columns=['DATA_TEMP', 'MES'])
+                        
+                        # Verificar se conseguiu extrair
+                        if df['TRIMESTRE'].notna().any():
+                            logger.debug(f"Extraído da coluna DATA: TRIMESTRE e ANO")
+                        else:
+                            logger.warning(f"Não foi possível extrair TRIMESTRE/ANO do arquivo {nome_arquivo}")
+                    
+                    except Exception as e:
+                        logger.warning(f"Erro ao extrair TRIMESTRE/ANO da coluna DATA: {e}")
+                        logger.warning(f"Não foi possível extrair TRIMESTRE/ANO do arquivo {nome_arquivo}")
+                else:
+                    logger.warning(f"Coluna DATA não encontrada. Não foi possível extrair TRIMESTRE/ANO do arquivo {nome_arquivo}")
             
             # Converter REG_ANS (ou REGISTROANS) para Int64 para match correto no JOIN
             coluna_reg = None

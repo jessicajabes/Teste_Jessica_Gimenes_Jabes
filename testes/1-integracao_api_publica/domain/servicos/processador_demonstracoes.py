@@ -400,8 +400,8 @@ class ProcessadorDemonstracoes:
         
         # Para cada linha principal, adicionar deduções subsequentes
         for idx_principal in indices_principais:
-            # Procurar deduções nas próximas linhas (limitar a 20 para performance)
-            for offset in range(1, min(20, len(df) - idx_principal)):
+            # Procurar deduções nas próximas linhas (parar quando encontrar linha que não é dedução)
+            for offset in range(1, len(df) - idx_principal):
                 idx_prox = idx_principal + offset
                 
                 # Se for dedução, adicionar

@@ -24,31 +24,46 @@ DELETE FROM operadoras;
 
 DROP TABLE IF EXISTS stg_operadoras CASCADE;
 CREATE TEMP TABLE stg_operadoras (
+  registro_operadora TEXT,
   cnpj TEXT,
-  reg_ans TEXT,
   razao_social TEXT,
+  nome_fantasia TEXT,
   modalidade TEXT,
-  uf TEXT
+  logradouro TEXT,
+  numero TEXT,
+  complemento TEXT,
+  bairro TEXT,
+  cidade TEXT,
+  uf TEXT,
+  cep TEXT,
+  ddd TEXT,
+  telefone TEXT,
+  fax TEXT,
+  endereco_eletronico TEXT,
+  representante TEXT,
+  cargo_representante TEXT,
+  regiao_de_comercializacao TEXT,
+  data_registro_ans TEXT
 );
 
 DROP TABLE IF EXISTS stg_sinistro_sem CASCADE;
 CREATE TEMP TABLE stg_sinistro_sem (
   reg_ans TEXT,
   cnpj TEXT,
-  razao_social TEXT,
+  razaosocial TEXT,
   trimestre TEXT,
   ano TEXT,
-  valor_despesas TEXT
+  valor_de_despesas TEXT
 );
 
 DROP TABLE IF EXISTS stg_sinistro_com CASCADE;
 CREATE TEMP TABLE stg_sinistro_com (
   cnpj TEXT,
-  razao_social TEXT,
+  razaosocial TEXT,
   trimestre TEXT,
   ano TEXT,
-  valor_despesas TEXT,
-  reg_ans TEXT,
+  valor_de_despesas TEXT,
+  registro_ans TEXT,
   conta_contabil TEXT,
   descricao TEXT
 );
@@ -83,20 +98,20 @@ CREATE TEMP TABLE stg_despesas_agregadas_c_deducoes (
 -- 2. IMPORTAR OPERADORAS ATIVAS
 -- =====================================================
 
-\COPY stg_operadoras(reg_ans, cnpj, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_ativas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_operadoras FROM '/tmp/csvs/operadoras_ativas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 -- Inserir operadoras ATIVAS
 INSERT INTO operadoras (reg_ans, cnpj, razao_social, modalidade, uf, status)
 SELECT 
-    TRIM(reg_ans),
+    TRIM(registro_operadora),
     REGEXP_REPLACE(cnpj, '[^0-9]', '', 'g'),
     TRIM(razao_social),
     NULLIF(TRIM(modalidade), ''),
     NULLIF(TRIM(uf), ''),
     'ATIVA'::VARCHAR(20)
 FROM stg_operadoras
-WHERE TRIM(reg_ans) IS NOT NULL 
-  AND TRIM(reg_ans) != ''
+WHERE TRIM(registro_operadora) IS NOT NULL 
+  AND TRIM(registro_operadora) != ''
   AND REGEXP_REPLACE(cnpj, '[^0-9]', '', 'g') IS NOT NULL
   AND TRIM(razao_social) IS NOT NULL
 ON CONFLICT (reg_ans) DO NOTHING;
@@ -108,20 +123,20 @@ DELETE FROM stg_operadoras;
 -- 3. IMPORTAR OPERADORAS CANCELADAS
 -- =====================================================
 
-\COPY stg_operadoras(reg_ans, cnpj, razao_social, modalidade, uf) FROM '/tmp/csvs/operadoras_canceladas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_operadoras FROM '/tmp/csvs/operadoras_canceladas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 -- Inserir operadoras CANCELADAS
 INSERT INTO operadoras (reg_ans, cnpj, razao_social, modalidade, uf, status)
 SELECT 
-    TRIM(reg_ans),
+    TRIM(registro_operadora),
     REGEXP_REPLACE(cnpj, '[^0-9]', '', 'g'),
     TRIM(razao_social),
     NULLIF(TRIM(modalidade), ''),
     NULLIF(TRIM(uf), ''),
     'CANCELADAS'::VARCHAR(20)
 FROM stg_operadoras
-WHERE TRIM(reg_ans) IS NOT NULL 
-  AND TRIM(reg_ans) != ''
+WHERE TRIM(registro_operadora) IS NOT NULL 
+  AND TRIM(registro_operadora) != ''
   AND REGEXP_REPLACE(cnpj, '[^0-9]', '', 'g') IS NOT NULL
   AND TRIM(razao_social) IS NOT NULL
 ON CONFLICT (reg_ans) DO NOTHING;
@@ -130,15 +145,15 @@ ON CONFLICT (reg_ans) DO NOTHING;
 -- 4. IMPORTAR CONSOLIDADOS (SEM DEDUÇÕES)
 -- =====================================================
 
-\COPY stg_sinistro_sem(reg_ans, cnpj, razao_social, trimestre, ano, valor_despesas) FROM '/tmp/csvs/sinistro_sem_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_sinistro_sem FROM '/tmp/csvs/sinistro_sem_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 INSERT INTO consolidados_despesas (cnpj, razao_social, trimestre, ano, valor_despesas, reg_ans)
 SELECT
     COALESCE(NULLIF(REGEXP_REPLACE(s.cnpj, '[^0-9]', '', 'g'), ''), o.cnpj, '00000000000000') AS cnpj,
-    COALESCE(NULLIF(TRIM(s.razao_social), ''), o.razao_social, s.reg_ans) AS razao_social,
-    CAST(TRIM(s.trimestre) AS INTEGER) AS trimestre,
+    COALESCE(NULLIF(TRIM(s.razaosocial), ''), o.razao_social, s.reg_ans) AS razao_social,
+    CAST(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g') AS INTEGER) AS trimestre,
     CAST(TRIM(s.ano) AS INTEGER) AS ano,
-    CAST(REPLACE(REPLACE(COALESCE(s.valor_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
+    CAST(REPLACE(REPLACE(COALESCE(s.valor_de_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
     TRIM(s.reg_ans) AS reg_ans
 FROM stg_sinistro_sem s
 LEFT JOIN operadoras o ON TRIM(s.reg_ans) = o.reg_ans
@@ -152,21 +167,21 @@ ON CONFLICT DO NOTHING;
 -- 5. IMPORTAR CONSOLIDADOS (COM DEDUÇÕES)
 -- =====================================================
 
-\COPY stg_sinistro_com(cnpj, razao_social, trimestre, ano, valor_despesas, reg_ans, conta_contabil, descricao) FROM '/tmp/csvs/consolidado_despesas_sinistros_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_sinistro_com FROM '/tmp/csvs/consolidado_despesas_sinistros_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
 INSERT INTO consolidados_despesas_c_deducoes (cnpj, razao_social, trimestre, ano, valor_despesas, reg_ans, descricao)
 SELECT
     COALESCE(NULLIF(REGEXP_REPLACE(s.cnpj, '[^0-9]', '', 'g'), ''), o.cnpj, '00000000000000') AS cnpj,
-    COALESCE(NULLIF(TRIM(s.razao_social), ''), o.razao_social, s.reg_ans) AS razao_social,
-    CAST(TRIM(s.trimestre) AS INTEGER) AS trimestre,
+    COALESCE(NULLIF(TRIM(s.razaosocial), ''), o.razao_social, s.registro_ans) AS razao_social,
+    CAST(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g') AS INTEGER) AS trimestre,
     CAST(TRIM(s.ano) AS INTEGER) AS ano,
-    CAST(REPLACE(REPLACE(COALESCE(s.valor_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
-    TRIM(s.reg_ans) AS reg_ans,
+    CAST(REPLACE(REPLACE(COALESCE(s.valor_de_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
+    TRIM(s.registro_ans) AS reg_ans,
     NULLIF(TRIM(s.descricao), '') AS descricao
 FROM stg_sinistro_com s
-LEFT JOIN operadoras o ON TRIM(s.reg_ans) = o.reg_ans
-WHERE TRIM(s.reg_ans) IS NOT NULL 
-  AND TRIM(s.reg_ans) != ''
+LEFT JOIN operadoras o ON TRIM(s.registro_ans) = o.reg_ans
+WHERE TRIM(s.registro_ans) IS NOT NULL 
+  AND TRIM(s.registro_ans) != ''
   AND TRIM(s.trimestre) IS NOT NULL
   AND TRIM(s.ano) IS NOT NULL
 ON CONFLICT DO NOTHING;
@@ -187,9 +202,9 @@ SELECT
     CAST(COALESCE(NULLIF(TRIM(s.qtd_registros), ''), '0') AS INTEGER) AS qtd_registros,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_trimestres), ''), '0') AS INTEGER) AS qtd_trimestres,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_anos), ''), '0') AS INTEGER) AS qtd_anos,
-    o.reg_ans AS reg_ans
+    COALESCE(o.reg_ans, TRIM(s.reg_ans)) AS reg_ans
 FROM stg_despesas_agregadas s
-JOIN operadoras o
+LEFT JOIN operadoras o
   ON o.reg_ans = TRIM(s.reg_ans)
 ON CONFLICT DO NOTHING;
 
@@ -209,9 +224,9 @@ SELECT
     CAST(COALESCE(NULLIF(TRIM(s.qtd_registros), ''), '0') AS INTEGER) AS qtd_registros,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_trimestres), ''), '0') AS INTEGER) AS qtd_trimestres,
     CAST(COALESCE(NULLIF(TRIM(s.qtd_anos), ''), '0') AS INTEGER) AS qtd_anos,
-    o.reg_ans AS reg_ans
+    COALESCE(o.reg_ans, TRIM(s.reg_ans)) AS reg_ans
 FROM stg_despesas_agregadas_c_deducoes s
-JOIN operadoras o
+LEFT JOIN operadoras o
   ON o.reg_ans = TRIM(s.reg_ans)
 ON CONFLICT DO NOTHING;
 
@@ -232,6 +247,12 @@ SELECT 'CONSOLIDADOS COM DEDUÇÃO', COUNT(*) FROM consolidados_despesas_c_deduc
 SELECT status, COUNT(*) FROM operadoras GROUP BY status;
 
 SELECT trimestre, COUNT(*), ROUND(SUM(valor_despesas)::numeric, 2) as total FROM consolidados_despesas GROUP BY trimestre ORDER BY trimestre;
+
+-- Totais de despesas agregadas
+SELECT 'Totais de despesas agregadas:' as info;
+SELECT 'SEM DEDUCAO' as tipo, ROUND(SUM(total_despesas)::numeric, 2) as total FROM despesas_agregadas
+UNION ALL
+SELECT 'COM DEDUCAO' as tipo, ROUND(SUM(total_despesas)::numeric, 2) as total FROM despesas_agregadas_c_deducoes;
 
 -- Reabilitar FK constraints
 ALTER TABLE consolidados_despesas ENABLE TRIGGER ALL;

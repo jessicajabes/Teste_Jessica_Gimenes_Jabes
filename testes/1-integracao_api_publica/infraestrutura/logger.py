@@ -5,6 +5,7 @@ Sistema de logging centralizado para o projeto
 import os
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from config import DIRETORIO_DOWNLOADS
 
 class LoggerConfig:
@@ -52,6 +53,15 @@ class LoggerConfig:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
+        # Criar classe customizada para usar timezone do Brasil
+        class FormatterComTimezoneBrasil(logging.Formatter):
+            converter = lambda *args: datetime.now(ZoneInfo('America/Sao_Paulo')).timetuple()
+        
+        formato_detalhado = FormatterComTimezoneBrasil(
+            '%(asctime)s | %(levelname)-8s | %(filename)s:%(lineno)d | %(funcName)s() | %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        
         # Handler para arquivo (arquivo consolidado de todas as operações)
         try:
             arquivo_log = os.path.join(cls._log_dir, 'aplicacao.log')
@@ -64,7 +74,8 @@ class LoggerConfig:
         
         # Handler para arquivo de sessão (arquivo único por execução)
         try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            tz_brasil = ZoneInfo('America/Sao_Paulo')
+            timestamp = datetime.now(tz_brasil).strftime('%Y%m%d_%H%M%S')
             cls._arquivo_log_sessao = os.path.join(cls._log_dir, f'sessao_{timestamp}.log')
             fh_sessao = logging.FileHandler(cls._arquivo_log_sessao, encoding='utf-8')
             fh_sessao.setLevel(logging.DEBUG)
@@ -76,7 +87,11 @@ class LoggerConfig:
         # Handler para console (menos detalhado)
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
-        formatter_console = logging.Formatter(
+        
+        class FormatterConsoleComTimezoneBrasil(logging.Formatter):
+            converter = lambda *args: datetime.now(ZoneInfo('America/Sao_Paulo')).timetuple()
+        
+        formatter_console = FormatterConsoleComTimezoneBrasil(
             '%(asctime)s | %(levelname)-8s | %(message)s',
             datefmt='%H:%M:%S'
         )

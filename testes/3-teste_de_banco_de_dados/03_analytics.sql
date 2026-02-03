@@ -31,7 +31,7 @@ serie_temporal AS (
 crescimento AS (
     SELECT DISTINCT
         tipo_despesa,
-        reg_ans,
+        s.reg_ans,
         op.razao_social,
         CASE
             WHEN valor_inicial = 0 THEN NULL
@@ -53,15 +53,17 @@ ORDER BY tipo_despesa, crescimento_percentual DESC;
 -- ============================================================================
 
 WITH despesas_por_uf AS (
-    SELECT 'SEM DEDUÇÃO' AS tipo_despesa, uf, reg_ans, SUM(valor_despesas) AS total
-    FROM consolidados_despesas
-    GROUP BY uf, reg_ans
+    SELECT 'SEM DEDUÇÃO' AS tipo_despesa, o.uf, cd.reg_ans, SUM(cd.valor_despesas) AS total
+    FROM consolidados_despesas cd
+    LEFT JOIN operadoras o ON cd.reg_ans = o.reg_ans
+    GROUP BY o.uf, cd.reg_ans
     
     UNION ALL
     
-    SELECT 'COM DEDUÇÃO' AS tipo_despesa, uf, reg_ans, SUM(valor_despesas) AS total
-    FROM consolidados_despesas_c_deducoes
-    GROUP BY uf, reg_ans
+    SELECT 'COM DEDUÇÃO' AS tipo_despesa, o.uf, cd.reg_ans, SUM(cd.valor_despesas) AS total
+    FROM consolidados_despesas_c_deducoes cd
+    LEFT JOIN operadoras o ON cd.reg_ans = o.reg_ans
+    GROUP BY o.uf, cd.reg_ans
 ),
 agregado AS (
     SELECT

@@ -7,7 +7,7 @@ CREATE TABLE operadoras (
     cnpj                VARCHAR(20) NOT NULL,
     razao_social        VARCHAR(255) NOT NULL,
     modalidade          VARCHAR(100),
-    uf                  CHAR(2),
+    uf                  VARCHAR(3),
     status              VARCHAR(20) NOT NULL,
     data_carga          TIMESTAMP DEFAULT NOW()
 );
@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS despesas_agregadas CASCADE;
 CREATE TABLE despesas_agregadas (
     id                          BIGSERIAL PRIMARY KEY,
     razao_social                VARCHAR(255) NOT NULL,
-    uf                          CHAR(2),
+    uf                          VARCHAR(3),
     total_despesas              NUMERIC(18,2) NOT NULL,
     media_despesas_trimestre    NUMERIC(18,2) NOT NULL,
     desvio_padrao_despesas      NUMERIC(18,2) NOT NULL,
@@ -40,7 +40,7 @@ DROP TABLE IF EXISTS despesas_agregadas_c_deducoes CASCADE;
 CREATE TABLE despesas_agregadas_c_deducoes (
     id                          BIGSERIAL PRIMARY KEY,
     razao_social                VARCHAR(255) NOT NULL,
-    uf                          CHAR(2),
+    uf                          VARCHAR(3),
     total_despesas              NUMERIC(18,2) NOT NULL,
     media_despesas_trimestre    NUMERIC(18,2) NOT NULL,
     desvio_padrao_despesas      NUMERIC(18,2) NOT NULL,

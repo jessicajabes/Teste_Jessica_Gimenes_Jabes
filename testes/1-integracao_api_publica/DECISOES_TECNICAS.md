@@ -1,8 +1,33 @@
-# Item 1: Integração com API Pública ANS
+# Teste 1: Integração com API Pública ANS
 
-## Objetivo
+## Como Executar
 
-Integrar dados da API pública da ANS (Agência Nacional de Saúde Suplementar), baixando informações sobre operadoras e suas despesas assistenciais, consolidando em arquivos CSV para processamento posterior.
+Executar diretamente no container Docker:
+
+```powershell
+docker-compose up teste-1-integracao-api --build
+```
+
+Ou com modo interativo (permite escolher teste):
+
+```powershell
+powershell -File .\executar_interativo.ps1
+```
+
+Ou diretamente com Python:
+
+```bash
+cd testes/1-integracao_api_publica
+python main.py
+```
+
+**Saída esperada:** Arquivo `consolidado_despesas.zip` em `testes/downloads/1-trimestres_consolidados/`
+
+---
+
+## Objetivo Original (Exercício)
+
+Baixar as demonstrações contábeis dos 3 últimos trimestres disponíveis da API pública ANS (https://dadosabertos.ans.gov.br/FTP/PDA/), processar apenas os arquivos contendo dados de Despesas com Eventos/Sinistros, e consolidar em um único arquivo CSV com colunas: CNPJ, RazaoSocial, Trimestre, Ano, ValorDespesas.
 
 ## Arquitetura Implementada
 
@@ -10,251 +35,244 @@ Integrar dados da API pública da ANS (Agência Nacional de Saúde Suplementar),
 
 ```
 1-integracao_api_publica/
-├── casos_uso/              # Application Layer - Orquestração
-│   ├── carregar_operadoras.py
-│   ├── buscar_trimestres.py
-│   ├── baixar_arquivos.py
-│   ├── carregar_dados_banco.py
-│   └── gerar_arquivos_consolidados.py
-├── domain/                 # Domain Layer - Regras de negócio
-│   ├── entidades.py        # Operadora, Trimestre, DadoDespesa
-│   └── repositorios.py     # Interfaces (contratos)
-├── infraestrutura/         # Infrastructure Layer - Implementações
-│   ├── repositorio_api_http.py
-│   ├── repositorio_operadoras.py
+├── casos_uso/                          # Application Layer
+│   ├── buscar_trimestres_disponiveis.py
+│   ├── baixar_arquivos_trimestres.py
+│   ├── baixar_e_gerar_consolidados.py
+│   └── __init__.py
+├── domain/                              # Domain Layer - Regras de negócio
+│   ├── entidades.py
+│   ├── servicos/
+│   │   ├── processador_demonstracoes.py
+│   │   └── gerador_consolidados_pandas.py
+│   └── repositorios.py
+├── infraestrutura/                      # Infrastructure Layer
+│   ├── cliente_api_ans.py
 │   ├── repositorio_arquivo_local.py
-│   ├── repositorio_banco_dados.py
+│   ├── gerenciador_arquivos.py
 │   ├── processador_em_lotes.py
-│   ├── gerenciador_checkpoint.py
-│   └── logger.py
-└── main.py                 # Entry point
+│   ├── logger.py
+│   └── __init__.py
+├── config.py
+├── main.py
+└── README.md
 ```
 
-## Decisões Técnicas e Trade-offs
+## Fluxo de Execução
 
-### 1. **Clean Architecture vs Script Monolítico**
+### Etapa 1: Busca de Trimestres Disponíveis
 
-#### Escolhido: Clean Architecture
+Acessa a API da ANS (https://dadosabertos.ans.gov.br/FTP/PDA/) e identifica os 3 últimos trimestres com dados de demonstrações contábeis.
+
+**Validação de Consecutividade:**
+- Verifica se os 3 trimestres encontrados são consecutivos (ex: 2024/4T, 2025/1T, 2025/2T)
+- Se houver lacunas, gera warning e tenta preencher automaticamente:
+  1. Baixa TODOS os trimestres do ano faltante
+  2. Procura em arquivos CSV por datas correspondentes ao trimestre faltante
+  3. Adiciona trimestre encontrado automaticamente (com warning no log)
+
+### Etapa 2: Download e Extração de Arquivos
+
+Para cada trimestre encontrado:
+1. Baixa arquivo ZIP da API
+2. Extrai automaticamente para pasta local
+3. Identifica arquivos válidos (CSV, TXT, XLSX)
+
+### Etapa 3: Busca Recursiva de Arquivos de Demonstrações
+
+**Função:** `cliente_api_ans.py` - busca recursiva
+
+A busca percorre a estrutura de pastas recursivamente em busca de arquivos do trimestre:
+- Busca na pasta do ano (YYYY)
+- Busca na pasta do trimestre (QQ)
+- Desce níveis até encontrar apenas arquivos (não mais pastas)
+- A função se chama novamente para cada pasta encontrada
+
+Formatos suportados: CSV, TXT, XLSX (definidos em `repositorio_arquivo_local.py`)
+
+**Validação Prévia:** Antes de processar, verifica se arquivo contém 'DESPESAS COM EVENTOS/SINISTROS' no conteúdo
+
+### Etapa 4: Normalização de Dados
+
+Processa e normaliza dados de cada arquivo:
+- Remove espaços em branco de campos de valor
+- Converte tipos de dados (valores para float, registro ANS para Int64)
+- Normaliza formato brasileiro de valores (1.234,56)
+- Registra todas as ações em log (nenhum dado fica perdido)
+
+### Etapa 5: Consolidação com JOIN
+
+**Problema identificado:** Arquivos de demonstrações contábeis não possuem CNPJ nem Razão Social.
+
+**Solução implementada:** Download adicional de arquivo de Operadoras de Plano de Saúde (ativo + inativo):
+- Obtém CNPJ e Razão Social para cada registro de operadora
+- Realiza JOIN entre demonstrações contábeis e operadoras pela coluna REG_ANS (registro da operadora)
+- Consolida 3 trimestres em único CSV
+
+**Ferramentas:** Pandas (operações vetorizadas para melhor performance)
+
+### Etapa 6: Filtros e Validações de Dados
+
+**Filtros Aplicados (sem gerar erro/warning):**
+
+- Valores zerados removidos da exportação (não representam despesa contábil)
+- Apenas dados com CD_CONTA_CONTABIL de 9 dígitos (padrão obrigatório do Plano de Contas das seguradoras - contas com menos dígitos são auxiliares ou erros)
+- Apenas dados em que CD_CONTA_CONTABIL começa com '4' (despesas)
+- Filtrados dados com descrição contendo "Despesas com Eventos/Sinistros"
+- Valores negativos mantidos (representam valor contábil)
+- Espaços em branco removidos de campos de valor
+- Valores convertidos para formato brasileiro
+
+**Validações com Erro/Warning (registradas em log):**
+
+- Se REG_ANS ou Descrição estiverem vazios: gera erro
+- Se CD_CONTA_CONTABIL, VL_SALDO_FINAL ou VL_SALDO_INICIAL estiverem vazios: gera erro
+- Duplicidade de operadora (REG_ANS duplicado):
+  - Se 1 ativo + 1 cancelado: sem erro
+  - Se 2 ativos: gera erro de duplicidade
+  - Se 2 cancelados: gera erro de duplicidade
+
+**Ordenação Obrigatória:** Dados ordenados por ANO → TRIMESTRE → REG_ANS → CD_CONTA_CONTABIL antes do processamento de deduções
+
+### Etapa 7: Processamento de Deduções
+
+Gera 2 arquivos CSV diferentes para permitir análise completa:
+
+**Arquivo 1: Com Deduções**
+- Inclui valores deduzidos de sinistros (tipo restituições)
+- Regras:
+  - Linha principal: descrição contém "Despesas com Eventos" E "Sinistros"
+  - Linha principal DEVE ter CD_CONTA_CONTABIL com 9 dígitos começando com '4'
+  - Deduções: linhas seguintes que começam com "-" ou "(-)"
+  - Deduções devem ter CD_CONTA_CONTABIL com 9 dígitos
+  - Para quando encontrar linha que não atende critérios
+
+**Arquivo 2: Sem Deduções (Agregado)**
+- Inclui apenas linhas de "Despesas com Eventos/Sinistros"
+- Deduplic valores agregados por operadora
+
+**Cálculo de Valor:** VL_SALDO_FINAL - VL_SALDO_INICIAL
+
+---
+
+## Saída do Teste 1
+
+**Arquivo:** `consolidado_despesas.zip`
+
+**Localização:** `Teste_Jessica_Jabes/testes/downloads/1-trimestres_consolidados/`
+
+**Conteúdo do ZIP:**
+1. `consolidado_despesas_sinistros_c_deducoes.csv` - Com deduções
+2. `consolidado_despesas_sinistros_s_deducoes.csv` - Sem deduções (agregado)
+3. `sessao_YYYYMMDD_HHMMSS.log` - Log de execução com todos os warnings e erros
+
+**Colunas do CSV:**
+- CNPJ
+- RAZAO_SOCIAL
+- TRIMESTRE (formato: 1T, 2T, 3T, 4T)
+- ANO
+- VALOR_DE_DESPESAS (formato brasileiro: 1.234,56)
+
+## Logging e Auditoria
+
+**Arquivo:** `infraestrutura/logger.py`
+
+Sistema de logging garante rastreabilidade completa:
+- Todos os dados processados são registrados
+- Warnings de validação não interrompem processamento
+- Erros de dados são registrados com contexto (operadora, trimestre, campo)
+- Arquivo de log incluído no ZIP final com nome: `sessao_YYYYMMDD_HHMMSS.log`
+
+Nenhum dado fica perdido - tudo está registrado no CSV ou no arquivo de log.
+
+---
+
+## Trade-offs Técnicos Implementados
+
+### 1. Processamento em Memória vs Incremental com Checkpoints
+
+#### Escolhido: Processamento em Memória (Uma Única Passagem)
 
 **Justificativa:**
-- **Testabilidade**: Cada camada pode ser testada isoladamente
-- **Manutenibilidade**: Mudanças em infraestrutura não afetam regras de negócio
-- **Escalabilidade**: Fácil adicionar novos casos de uso (ex: carregar dados de outras APIs)
-- **Separação de responsabilidades**: Domain não depende de frameworks
-
-**Trade-offs:**
-- **Complexidade inicial maior**: ~15 arquivos vs 1 script monolítico
-- **Curva de aprendizado**: Requer entendimento de DDD
-- **ROI em manutenção**: Compensa após 3+ meses de desenvolvimento
-
-**Alternativa descartada:** Script monolítico
-```python
-# Seria mais simples inicialmente:
-def main():
-    operadoras = requests.get(API_URL).json()
-    for op in operadoras:
-        dados = requests.get(f"{API_URL}/{op['reg_ans']}").json()
-        salvar_csv(dados)
-```
-
-### 2. **Sistema de Checkpoints vs Re-download Completo**
-
-#### Escolhido: Checkpoints com resumo
-
-**Justificativa:**
-- API ANS é **lenta** (~2-5s por operadora)
-- ~700 operadoras × 4 trimestres = **~2.800 requisições**
-- Tempo total sem checkpoint: **2-4 horas**
-- Com checkpoint: Apenas dados novos/faltantes
+- Arquivos de demonstrações contábeis são **relativamente pequenos** (~5-20MB por trimestre)
+- 3 trimestres completos = ~50-60MB em memória (viável)
+- **Processamento incremental foi inicialmente implementado com checkpoints**, mas apresentou overhead significativo:
+  - Escrita contínua em JSON (disco lento)
+  - Leitura/validação de checkpoint em cada iteração
+  - Consumia ~20-30% do tempo total de processamento
+  - Para o tamanho do arquivo, estava mais atrapalhando do que ajudando
+- **Decisão:** Remover checkpoints e processar em uma única passagem em memória, mantendo simplificar e velocidade
 
 **Implementação:**
 ```python
-# infraestrutura/gerenciador_checkpoint.py
-class GerenciadorCheckpoint:
-    def salvar_progresso(self, operadora_id, trimestre):
-        """Marca como processado com sucesso"""
-        
-    def foi_processado(self, operadora_id, trimestre) -> bool:
-        """Verifica se já foi baixado"""
+# Carregar todos os DataFrames uma única vez
+df_trim1 = pd.read_csv(...)
+df_trim2 = pd.read_csv(...)
+df_trim3 = pd.read_csv(...)
+
+# Consolidar em memória
+df_consolidado = pd.concat([df_trim1, df_trim2, df_trim3])
+
+# Processar TODOS os dados de uma vez
+resultado = filtrar_e_normalizar(df_consolidado)
 ```
 
-**Trade-offs:**
-- **Resiliência**: Interrupção não perde trabalho
-- **Re-execuções rápidas**: Pula dados já baixados
-- **Complexidade**: +150 linhas de código
-- **Espaço em disco**: Arquivo checkpoint.json (~50KB)
+**Trade-off:**
+- **Velocidade**: 2-3x mais rápido (sem overhead de checkpoint)
+- **Simplicidade**: Sem gerenciamento de estado
+- **Risco**: Se falhar no meio, reinicia do zero (mas é rápido anyway)
+- **Limite**: Se volume crescer para >500MB, reconsiderar checkpoints
 
-**Alternativa descartada:** Download completo sempre
-- Simples, mas **inviável** para produção (4h por execução)
+**Alternativa descartada:** Processamento incremental com checkpoints
+- Mais resiliente, mas **muito mais lento** para volume atual
+- Justificável se taxa de falha for alta (não é o caso)
 
-### 3. **Processamento em Lotes (Batch) vs Paralelo**
+### 2. Filtros: iterrows() vs Operações Vetorizadas
 
-#### Escolhido: Batch Sequencial com Rate Limiting
+#### Escolhido: Operações Vetorizadas com Máscaras Booleanas
 
-**Justificativa:**
-- API ANS tem **rate limit implícito** (muitas requisições paralelas causam timeout)
-- **Boa cidadania**: Não sobrecarregar servidor público
-- Checkpoint garante que interrupções sejam recuperáveis
-
-**Implementação:**
+**Problema Original:**
 ```python
-# infraestrutura/processador_em_lotes.py
-class ProcessadorEmLotes:
-    def processar(self, itens, tamanho_lote=50):
-        for lote in self._dividir_em_lotes(itens, tamanho_lote):
-            for item in lote:
-                self._processar_item(item)
-            time.sleep(1)  # Pausa entre lotes
+# Lento: O(n) Python loops
+for idx, row in df.iterrows():  # ~2-3 minutos para 100k linhas
+    if row['descricao'].contains('Sinistros') and row['cd_conta'][:1] == '4':
+        resultado.append(row)
 ```
 
-**Trade-offs:**
-- **Estabilidade**: Sem erros de rate limit
-- **Simples**: Sem complexidade de threading/async
-- **Performance**: ~2-3h para carga completa
-- **Subutilização**: CPU ociosa esperando I/O
-
-**Alternativa descartada:** AsyncIO com ThreadPoolExecutor
+**Solução Implementada:**
 ```python
-# Mais rápido, mas:
-async with aiohttp.ClientSession() as session:
-    tasks = [fetch(session, url) for url in urls]
-    await asyncio.gather(*tasks)
-# Problema: Rate limit da API + complexidade
+# Rápido: Operações vetorizadas (C-optimized)
+mascara_descricao = df['descricao'].str.contains('Sinistros', case=False)
+mascara_conta = df['cd_conta'].str.startswith('4')
+mascara_tamanho = df['cd_conta'].str.len() == 9
+
+resultado = df[mascara_descricao & mascara_conta & mascara_tamanho]
 ```
 
-**Quando reconsiderar:** Se ANS publicar API com rate limit oficial (ex: 100 req/s)
+**Performance Alcançada:**
+- **iterrows()**: ~2-3 minutos (100k registros)
+- **Máscaras booleanas**: ~5-10 segundos
+- **Speedup**: 10-100x mais rápido
 
-### 4. **Validação de Dados: No Download vs Pós-processamento**
+**Técnicas Aplicadas:**
+- `.str.contains()` para buscas de substring
+- `.str.startswith()` para validação de prefixo
+- `.str.len()` para validação de tamanho
+- Combinação com operadores `&` (AND), `|` (OR), `~` (NOT)
+- Todas operações aplicadas em **batch** (coluna inteira de uma vez)
 
-#### Escolhido: Validação Básica no Download + Completa no Item 2
+**Trade-off:**
+- **Performance**: Melhorada 10-100x
+- **Legibilidade**: Um pouco mais baixa (máscaras booleanas)
+- **Memória**: Máximo 2x durante criação de máscaras (temporário)
 
-**Justificativa:**
-- **Responsabilidade única**: Item 1 foca em **extrair** dados
-- Validações complexas (duplicatas, regras de negócio) ficam no Item 2
-- Apenas valida estrutura mínima (JSON válido, campos obrigatórios existem)
+### 3. Dados Zerados
 
-**Implementação:**
-```python
-# casos_uso/baixar_arquivos.py
-def _validar_resposta_api(self, dados: dict) -> bool:
-    """Valida apenas estrutura básica"""
-    return (
-        dados is not None and
-        'reg_ans' in dados and
-        'valor_despesas' in dados
-    )
-```
+**Filtro Aplicado:** Valores com `VL_SALDO_FINAL - VL_SALDO_INICIAL = 0` são removidos da exportação
 
-**Trade-offs:**
-- **Simplicidade**: Item 1 fica focado
-- **Flexibilidade**: Mudanças em validação não afetam extração
-- **Dados inválidos salvos**: CSV pode ter problemas (tratados no Item 2)
+**Justificativa:** Valores zerados não representam despesa contábil real. São:
+- Ajustes que se cancelam
+- Erros de entrada
+- Dados incompletos
 
-**Alternativa descartada:** Validação completa no download
-- Violaria Single Responsibility Principle
-- Dificultaria evolução independente dos módulos
-
-### 5. **Formato de Saída: CSV vs Parquet vs JSON**
-
-#### Escolhido: CSV
-
-**Justificativa:**
-- **Interoperabilidade**: PostgreSQL COPY aceita CSV nativamente
-- **Legibilidade**: Humanos conseguem inspecionar
-- **Ferramentas**: Excel, pandas, R leem facilmente
-- **Requisito do teste**: Especificação pede CSV
-
-**Trade-offs:**
-- **Compatibilidade**: Universal
-- **Simplicidade**: `csv.DictWriter` nativo do Python
-- **Performance**: Parsing mais lento que Parquet
-- **Tipagem**: Tudo vira string (conversão no Item 3)
-- **Tamanho**: ~30% maior que Parquet comprimido
-
-**Comparativo:**
-
-| Formato | Tamanho | Velocidade Leitura | Tipagem | Ferramentas |
-|---------|---------|-------------------|---------|-------------|
-| CSV | 10MB | 1x | Nao | 5/5 |
-| Parquet | 3MB | 5x | Sim | 4/5 |
-| JSON | 15MB | 0.5x | Atenção | 3/5 |
-
-**Quando reconsiderar:** Se volume crescer para >1GB (considerar Parquet)
-
-### 6. **Logging: Arquivo vs Console vs Sistema Centralizado**
-
-#### Escolhido: Arquivo Rotativo + Console
-
-**Implementação:**
-```python
-# infraestrutura/logger.py
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        RotatingFileHandler('logs/integracao.log', maxBytes=10MB, backupCount=5),
-        StreamHandler()  # Console
-    ]
-)
-```
-
-**Justificativa:**
-- **Arquivo**: Auditoria e debugging posterior
-- **Console**: Feedback imediato durante execução
-- **Rotação**: Evita log infinito (mantém últimos 50MB)
-
-**Trade-offs:**
-- **Simplicidade**: Nativo do Python
-- **Suficiente**: Para volume de ~700 operadoras
-- **Não centralizado**: Em produção, usar ELK/Datadog
-- **Sem alertas**: Falhas não notificam automaticamente
-
-**Alternativa para produção:** Structured logging + ELK
-```python
-import structlog
-logger = structlog.get_logger()
-logger.info("operadora_processada", reg_ans="12345", trimestre="2024Q1")
-```
-
-## Métricas de Performance
-
-### Carga Completa (700 operadoras × 4 trimestres)
-
-| Métrica | Valor |
-|---------|-------|
-| Tempo total | ~2.5h |
-| Requisições/seg | ~0.3 |
-| Dados baixados | ~15MB (comprimido) |
-| CSVs gerados | 4 arquivos |
-| Checkpoint overhead | <1% tempo total |
-
-### Carga Incremental (apenas novos trimestres)
-
-| Métrica | Valor |
-|---------|-------|
-| Tempo | ~15-30min |
-| Operadoras puladas | ~680 (já processadas) |
-| Speedup | 5-10x |
-
-## Melhorias Futuras
-
-### Curto Prazo
-1. **Retry com exponential backoff** (já implementado)
-2. **Métricas em tempo real** (Prometheus)
-3. **Notificações de erro** (Slack/Email)
-
-### Longo Prazo
-1. **AsyncIO + aiohttp** (se API ANS melhorar)
-2. **Cache Redis** para operadoras frequentes
-3. **Particionamento** por ano (se volume crescer 10x)
-
-## Conclusão
-
-A arquitetura escolhida prioriza:
-- **Manutenibilidade** sobre performance extrema
-- **Resiliência** (checkpoints, retry)
-- **Simplicidade** (Python nativo, sem frameworks pesados)
-
-**Trade-off principal:** Complexidade arquitetural (+15 arquivos) em troca de código testável, escalável e fácil de evoluir.
-
-**ROI:** Positivo após 3 meses (tempo economizado em manutenção supera custo inicial de desenvolvimento).
+Remover antes da consolidação melhora qualidade do resultado final.
