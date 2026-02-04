@@ -45,6 +45,7 @@ CREATE TEMP TABLE stg_sinistro_com (
 
 DROP TABLE IF EXISTS stg_despesas_agregadas CASCADE;
 CREATE TEMP TABLE stg_despesas_agregadas (
+  cnpj TEXT,
   razao_social TEXT,
   reg_ans TEXT,
   uf TEXT,
@@ -58,6 +59,7 @@ CREATE TEMP TABLE stg_despesas_agregadas (
 
 DROP TABLE IF EXISTS stg_despesas_agregadas_c_deducoes CASCADE;
 CREATE TEMP TABLE stg_despesas_agregadas_c_deducoes (
+  cnpj TEXT,
   razao_social TEXT,
   reg_ans TEXT,
   uf TEXT,
@@ -87,16 +89,12 @@ SELECT
         '├┤', 'á'),
         '├®', 'ô'),
         '├ô', 'õ') AS razao_social,
-    CAST(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g') AS INTEGER) AS trimestre,
-    CAST(TRIM(s.ano) AS INTEGER) AS ano,
+    CAST(COALESCE(NULLIF(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g'), ''), '1') AS INTEGER) AS trimestre,
+    CAST(COALESCE(NULLIF(TRIM(s.ano), ''), '2000') AS INTEGER) AS ano,
     CAST(REPLACE(REPLACE(COALESCE(s.valor_de_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
-    TRIM(s.reg_ans) AS reg_ans
+    COALESCE(NULLIF(TRIM(s.reg_ans), ''), '00000') AS reg_ans
 FROM stg_sinistro_sem s
 LEFT JOIN operadoras o ON TRIM(s.reg_ans) = o.reg_ans
-WHERE TRIM(s.reg_ans) IS NOT NULL 
-  AND TRIM(s.reg_ans) != ''
-  AND TRIM(s.trimestre) IS NOT NULL
-  AND TRIM(s.ano) IS NOT NULL
 ON CONFLICT DO NOTHING;
 
 -- =====================================================
@@ -117,30 +115,27 @@ SELECT
         '├┤', 'á'),
         '├®', 'ô'),
         '├ô', 'õ') AS razao_social,
-    CAST(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g') AS INTEGER) AS trimestre,
-    CAST(TRIM(s.ano) AS INTEGER) AS ano,
+    CAST(COALESCE(NULLIF(REGEXP_REPLACE(TRIM(s.trimestre), '[^0-9]', '', 'g'), ''), '1') AS INTEGER) AS trimestre,
+    CAST(COALESCE(NULLIF(TRIM(s.ano), ''), '2000') AS INTEGER) AS ano,
     CAST(REPLACE(REPLACE(COALESCE(s.valor_de_despesas, '0'), '.', ''), ',', '.') AS NUMERIC(18,2)) AS valor_despesas,
-    TRIM(s.registro_ans) AS reg_ans,
+    COALESCE(NULLIF(TRIM(s.registro_ans), ''), '00000') AS reg_ans,
     REPLACE(REPLACE(REPLACE(NULLIF(TRIM(s.descricao), ''),
         '├è', 'é'),
         '├Ü', 'ú'),
         '├ç', 'ç') AS descricao
 FROM stg_sinistro_com s
 LEFT JOIN operadoras o ON TRIM(s.registro_ans) = o.reg_ans
-WHERE TRIM(s.registro_ans) IS NOT NULL 
-  AND TRIM(s.registro_ans) != ''
-  AND TRIM(s.trimestre) IS NOT NULL
-  AND TRIM(s.ano) IS NOT NULL
 ON CONFLICT DO NOTHING;
 
 -- =====================================================
 -- 4. IMPORTAR DESPESAS AGREGADAS (SEM DEDUÇÃO)
 -- =====================================================
 
-\COPY stg_despesas_agregadas(razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/mnt/csvs/despesas_agregadas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_despesas_agregadas(cnpj, razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/mnt/csvs/despesas_agregadas.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
-INSERT INTO despesas_agregadas (razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
+INSERT INTO despesas_agregadas (cnpj, razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
 SELECT
+  COALESCE(NULLIF(REGEXP_REPLACE(s.cnpj, '[^0-9]', '', 'g'), ''), o.cnpj, '00000000000000') AS cnpj,
     REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(s.razao_social),
         '├è', 'é'),
         '├Ü', 'ú'),
@@ -167,10 +162,11 @@ ON CONFLICT DO NOTHING;
 -- 5. IMPORTAR DESPESAS AGREGADAS (COM DEDUÇÃO)
 -- =====================================================
 
-\COPY stg_despesas_agregadas_c_deducoes(razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/mnt/csvs/despesas_agregadas_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
+\COPY stg_despesas_agregadas_c_deducoes(cnpj, razao_social, reg_ans, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos) FROM '/mnt/csvs/despesas_agregadas_c_deducoes.csv' WITH (FORMAT CSV, HEADER TRUE, DELIMITER ';', QUOTE '"', ENCODING 'UTF8');
 
-INSERT INTO despesas_agregadas_c_deducoes (razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
+INSERT INTO despesas_agregadas_c_deducoes (cnpj, razao_social, uf, total_despesas, media_despesas_trimestre, desvio_padrao_despesas, qtd_registros, qtd_trimestres, qtd_anos, reg_ans)
 SELECT
+  COALESCE(NULLIF(REGEXP_REPLACE(s.cnpj, '[^0-9]', '', 'g'), ''), o.cnpj, '00000000000000') AS cnpj,
     REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(s.razao_social),
         '├è', 'é'),
         '├Ü', 'ú'),

@@ -22,6 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_operadoras_reg_ans ON operadoras(reg_ans);
 DROP TABLE IF EXISTS despesas_agregadas CASCADE;
 CREATE TABLE despesas_agregadas (
     id                          BIGSERIAL PRIMARY KEY,
+    cnpj                        VARCHAR(20) NOT NULL,
     razao_social                VARCHAR(255) NOT NULL,
     uf                          VARCHAR(3),
     total_despesas              NUMERIC(18,2) NOT NULL,
@@ -39,6 +40,7 @@ CREATE TABLE despesas_agregadas (
 DROP TABLE IF EXISTS despesas_agregadas_c_deducoes CASCADE;
 CREATE TABLE despesas_agregadas_c_deducoes (
     id                          BIGSERIAL PRIMARY KEY,
+    cnpj                        VARCHAR(20) NOT NULL,
     razao_social                VARCHAR(255) NOT NULL,
     uf                          VARCHAR(3),
     total_despesas              NUMERIC(18,2) NOT NULL,
@@ -56,11 +58,13 @@ CREATE TABLE despesas_agregadas_c_deducoes (
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_uf ON despesas_agregadas(uf);
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_razao_social ON despesas_agregadas(razao_social);
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_reg_ans ON despesas_agregadas(reg_ans);
+CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_cnpj ON despesas_agregadas(cnpj);
 
 -- Índices para despesas com dedução
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_c_deducoes_uf ON despesas_agregadas_c_deducoes(uf);
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_c_deducoes_razao_social ON despesas_agregadas_c_deducoes(razao_social);
 CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_c_deducoes_reg_ans ON despesas_agregadas_c_deducoes(reg_ans);
+CREATE INDEX IF NOT EXISTS idx_despesas_agregadas_c_deducoes_cnpj ON despesas_agregadas_c_deducoes(cnpj);
 
 -- Tabela de consolidados de despesas SEM dedução (detalhamento por trimestre/ano)
 DROP TABLE IF EXISTS consolidados_despesas CASCADE;

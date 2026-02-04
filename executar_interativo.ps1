@@ -22,7 +22,7 @@ docker exec -i intuitive-care-integracao-api python /app/2-transformacao_validac
 
 Write-Host "" 
 Write-Host "[3/4] Executando Teste 3 - Banco de Dados (import + analytics)..." -ForegroundColor Cyan
-$importScript = Join-Path $ROOT "testes\3-teste_de_banco_de_dados\import_csvs.ps1"
+$importScript = Join-Path $ROOT "testes\3-teste_de_banco_de_dados\executar_teste_3.ps1"
 powershell -ExecutionPolicy Bypass -File $importScript
 
 Write-Host "" 

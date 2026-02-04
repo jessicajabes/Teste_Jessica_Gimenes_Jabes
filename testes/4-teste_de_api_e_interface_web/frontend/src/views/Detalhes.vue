@@ -64,37 +64,62 @@
         </div>
         
         <div v-else-if="despesas.length > 0">
-          <div class="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Tipo</th>
-                  <th>UF</th>
-                  <th>Total de Despesas</th>
-                  <th>Média por Trimestre</th>
-                  <th>Desvio Padrão</th>
-                  <th>Registros</th>
-                  <th>Trimestres</th>
-                  <th>Anos</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(despesa, index) in despesas" :key="index">
-                  <td>
-                    <span :class="badgeTipoDeducao(despesa.tipo_deducao)">
-                      {{ despesa.tipo_deducao }}
-                    </span>
-                  </td>
-                  <td>{{ despesa.uf || 'N/A' }}</td>
-                  <td>{{ formatarMoeda(despesa.total_despesas) }}</td>
-                  <td>{{ formatarMoeda(despesa.media_despesas_trimestre) }}</td>
-                  <td>{{ formatarMoeda(despesa.desvio_padrao_despesas) }}</td>
-                  <td>{{ despesa.qtd_registros }}</td>
-                  <td>{{ despesa.qtd_trimestres }}</td>
-                  <td>{{ despesa.qtd_anos }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- Despesas SEM DEDUÇÃO -->
+          <div v-if="despesasSemDeducao.length > 0" style="margin-bottom: 2rem;">
+            <h3 style="margin-bottom: 1rem;">
+              <span class="badge badge-warning">SEM DEDUÇÃO</span>
+            </h3>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ano</th>
+                    <th>Trimestre</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(despesa, index) in despesasSemDeducao" :key="'sem-' + index">
+                    <td>{{ despesa.ano }}</td>
+                    <td>{{ despesa.trimestre }}º Trimestre</td>
+                    <td>{{ formatarMoeda(despesa.valor) }}</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td colspan="2"><strong>TOTAL</strong></td>
+                    <td><strong>{{ formatarMoeda(totalSemDeducao) }}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Despesas COM DEDUÇÃO -->
+          <div v-if="despesasComDeducao.length > 0">
+            <h3 style="margin-bottom: 1rem;">
+              <span class="badge badge-success">COM DEDUÇÃO</span>
+            </h3>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Ano</th>
+                    <th>Trimestre</th>
+                    <th>Valor</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(despesa, index) in despesasComDeducao" :key="'com-' + index">
+                    <td>{{ despesa.ano }}</td>
+                    <td>{{ despesa.trimestre }}º Trimestre</td>
+                    <td>{{ formatarMoeda(despesa.valor) }}</td>
+                  </tr>
+                  <tr class="total-row">
+                    <td colspan="2"><strong>TOTAL</strong></td>
+                    <td><strong>{{ formatarMoeda(totalComDeducao) }}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
         
@@ -107,7 +132,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { operadorasService } from '../services/operadoras'
 
@@ -183,6 +208,22 @@ export default {
       return tipo === 'SEM DEDUÇÃO' ? 'badge badge-warning' : 'badge badge-success'
     }
 
+    const despesasSemDeducao = computed(() => {
+      return despesas.value.filter(d => d.tipo_deducao === 'SEM DEDUÇÃO')
+    })
+
+    const despesasComDeducao = computed(() => {
+      return despesas.value.filter(d => d.tipo_deducao === 'COM DEDUÇÃO')
+    })
+
+    const totalSemDeducao = computed(() => {
+      return despesasSemDeducao.value.reduce((sum, d) => sum + (d.valor || 0), 0)
+    })
+
+    const totalComDeducao = computed(() => {
+      return despesasComDeducao.value.reduce((sum, d) => sum + (d.valor || 0), 0)
+    })
+
     onMounted(() => {
       carregarOperadora()
       carregarDespesas()
@@ -191,6 +232,10 @@ export default {
     return {
       operadora,
       despesas,
+      despesasSemDeducao,
+      despesasComDeducao,
+      totalSemDeducao,
+      totalComDeducao,
       loading,
       erro,
       loadingDespesas,
@@ -204,3 +249,141 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.loading, .error, .empty {
+  text-align: center;
+  padding: 2rem;
+  margin: 1rem 0;
+}
+
+.error {
+  color: #e74c3c;
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-title {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #2c3e50;
+  font-size: 1.5rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-label {
+  font-size: 0.875rem;
+  color: #7f8c8d;
+  margin-bottom: 0.5rem;
+}
+
+.detail-value {
+  font-size: 1rem;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.table-container {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+thead {
+  background-color: #f8f9fa;
+}
+
+th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #dee2e6;
+}
+
+td {
+  padding: 1rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+tr:hover {
+  background-color: #f8f9fa;
+}
+
+tr.total-row {
+  background-color: #e9ecef;
+  font-weight: bold;
+  border-top: 2px solid #dee2e6;
+}
+
+tr.total-row:hover {
+  background-color: #e9ecef;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.badge-success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.badge-danger {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.badge-warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+}
+</style>

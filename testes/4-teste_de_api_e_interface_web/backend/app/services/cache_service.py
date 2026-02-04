@@ -1,28 +1,7 @@
-"""
-Serviço de Cache com TTL
-TRADE-OFF: Cache com TTL vs Queries Diretas
 
-DECISÃO: Cache com TTL (Opção B)
-
-JUSTIFICATIVA:
-- Os dados de estatísticas são custosos para calcular (agregações complexas)
-- Os dados do banco não mudam frequentemente (atualizações diárias/semanais)
-- TTL de 5 minutos oferece bom balance entre performance e consistência
-- Mais simples que pré-calcular e armazenar em tabela (Opção C)
-- Mais performático que calcular sempre (Opção A)
-
-IMPLEMENTAÇÃO:
-- Usa cachetools.TTLCache para armazenamento em memória
-- Cache por chave (permite invalidação seletiva)
-- Ideal para APIs com múltiplas requisições simultâneas
-
-LIMITAÇÕES:
-- Cache em memória não persiste entre reinicializações
-- Não compartilhado entre múltiplas instâncias (usar Redis em produção)
-"""
 from cachetools import TTLCache
 from typing import Optional, Any
-from app.config import get_settings
+from app.core.config import get_settings
 
 settings = get_settings()
 
@@ -49,3 +28,4 @@ def clear_cache(key: Optional[str] = None) -> None:
         _cache.pop(key, None)
     else:
         _cache.clear()
+

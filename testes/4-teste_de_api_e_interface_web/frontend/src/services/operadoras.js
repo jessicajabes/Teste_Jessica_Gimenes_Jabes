@@ -3,7 +3,7 @@ import api from './api'
 export const operadorasService = {
   async listar(page = 1, limit = 10, busca = '') {
     const params = { page, limit }
-    if (busca) params.q = busca
+    if (busca) params.search = busca
     
     const response = await api.get('/api/operadoras', { params })
     return response.data

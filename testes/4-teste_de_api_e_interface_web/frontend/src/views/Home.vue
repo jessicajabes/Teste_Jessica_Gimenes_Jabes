@@ -1,18 +1,41 @@
 <template>
   <div class="container">
     <!-- Estatísticas -->
-    <div v-if="estatisticas" class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-label">Total de Despesas</div>
-        <div class="stat-value">{{ formatarMoeda(estatisticas.total_despesas) }}</div>
+    <div v-if="estatisticas" class="stats-section">
+      <h2 class="section-title">Operadoras</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total de Operadoras</div>
+          <div class="stat-value">{{ totalOperadoras }}</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Média de Despesas</div>
-        <div class="stat-value">{{ formatarMoeda(estatisticas.media_despesas) }}</div>
+    </div>
+
+    <div v-if="estatisticas" class="stats-section">
+      <h2 class="section-title">Despesas (sem dedução)</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total de Despesas</div>
+          <div class="stat-value">{{ formatarMoeda(estatisticas.total_despesas) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Média de Despesas</div>
+          <div class="stat-value">{{ formatarMoeda(estatisticas.media_despesas) }}</div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Total de Operadoras</div>
-        <div class="stat-value">{{ totalOperadoras }}</div>
+    </div>
+
+    <div v-if="estatisticas" class="stats-section">
+      <h2 class="section-title">Despesas (com dedução)</h2>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total de Despesas</div>
+          <div class="stat-value">{{ formatarMoeda(estatisticas.total_despesas_c_deducoes) }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Média de Despesas</div>
+          <div class="stat-value">{{ formatarMoeda(estatisticas.media_despesas_c_deducoes) }}</div>
+        </div>
       </div>
     </div>
 
@@ -22,10 +45,22 @@
       <GraficoDespesasUf :dados="estatisticas.despesas_por_uf" />
     </div>
 
+    <!-- Gráfico de Despesas por UF (com dedução) -->
+    <div v-if="estatisticas" class="card">
+      <h2 class="card-title">Distribuição de Despesas por UF (com dedução)</h2>
+      <GraficoDespesasUf :dados="estatisticas.despesas_por_uf_c_deducoes" />
+    </div>
+
     <!-- Top 5 Operadoras -->
     <div v-if="estatisticas" class="card">
       <h2 class="card-title">Top 5 Operadoras com Maiores Despesas</h2>
       <TabelaTop5 :operadoras="estatisticas.top_5_operadoras" />
+    </div>
+
+    <!-- Top 5 Operadoras (com dedução) -->
+    <div v-if="estatisticas" class="card">
+      <h2 class="card-title">Top 5 Operadoras com Maiores Despesas (com dedução)</h2>
+      <TabelaTop5 :operadoras="estatisticas.top_5_operadoras_c_deducoes" />
     </div>
 
     <!-- Busca e Tabela de Operadoras -->
@@ -123,7 +158,11 @@ export default {
 
     const carregarEstatisticas = async () => {
       try {
-        estatisticas.value = await operadorasService.obterEstatisticas()
+        const raw = await operadorasService.obterEstatisticas()
+        const normalizado = Object.fromEntries(
+          Object.entries(raw).map(([key, value]) => [key.trim(), value])
+        )
+        estatisticas.value = normalizado
       } catch (err) {
         console.error('Erro ao carregar estatísticas:', err)
       }

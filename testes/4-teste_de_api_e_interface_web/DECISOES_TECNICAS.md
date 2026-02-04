@@ -1,496 +1,338 @@
 # Item 4: API REST e Interface Web
 
-## Objetivo
+## Como executar
 
-Desenvolver API REST para expor dados de operadoras e despesas, implementar interface web interativa para visualização e busca, garantindo performance, segurança e experiência de usuário fluida.
+### Docker (API + Frontend)
+Executar ambos os containers:
 
-## Arquitetura Implementada
-
-### Backend: FastAPI (Python)
-```
-backend/
-├── main_api.py              # Rotas HTTP + Middlewares
-├── schemas.py               # Pydantic models (validação)
-├── repositories.py          # Acesso ao banco de dados
-├── services.py              # Lógica de negócio + cache
-├── database.py              # Conexão PostgreSQL
-├── config.py                # Variáveis de ambiente
-└── Dockerfile               # Containerização
+```powershell
+docker-compose up -d api_operadoras frontend_operadoras
 ```
 
-### Frontend: Vue.js 3 + Vite
-```
-frontend/
-├── src/
-│   ├── components/          # Componentes reutilizáveis
-│   ├── views/               # Páginas (Listagem, Detalhes)
-│   ├── router/              # Vue Router (SPA)
-│   ├── services/            # API client (Axios)
-│   └── App.vue              # Componente raiz
-├── index.html
-└── Dockerfile
+Ou pelo script interativo (selecionar opção 4):
+
+```powershell
+powershell -File .\executar_por_teste.ps1
 ```
 
-## Decisões Técnicas e Trade-offs
-
-### 1. **Framework Backend: FastAPI vs Flask vs Django**
-
-#### Escolhido: FastAPI
-
-**Justificativa:**
-- **Performance**: Assíncrono nativo (uvicorn + asyncio)
-- **Validação automática**: Pydantic models (menos código)
-- **Documentação**: OpenAPI/Swagger gerado automaticamente
-- **Type hints**: Python moderno (3.10+)
-- **Experiência de desenvolvimento**: Hot reload, erros descritivos
-
-**Implementação:**
-```python
-from fastapi import FastAPI, Query
-from pydantic import BaseModel
-
-class Operadora(BaseModel):
-    cnpj: str
-    razao_social: str
-    uf: str | None
-
-@app.get("/api/operadoras", response_model=list[Operadora])
-def listar_operadoras(q: str | None = Query(None, min_length=3)):
-    # Validação automática de query params
-    return repository.buscar(q)
-```
-
-**Comparativo:**
-
-| Framework | Performance | Validação | Docs Auto | Curva Aprendizado |
-|-----------|-------------|-----------|-----------|-------------------|
-| **FastAPI** | 5/5 | 5/5 | 5/5 | 4/5 |
-| Flask | 3/5 | 2/5 (manual) | Nao | 5/5 |
-| Django REST | 4/5 | 4/5 | 4/5 | 3/5 |
-
-**Trade-offs:**
-- **Produtividade**: 50% menos código que Flask
-- **Type safety**: Erros detectados em dev time
-- **Performance**: 2-3x mais rápido que Flask síncrono
-- **Maturidade**: Comunidade menor que Django
-- **Async complexo**: Requer entendimento de asyncio
-
-**Alternativa descartada:** Flask
-```python
-# Simples, mas:
-from flask import Flask, request, jsonify
-
-@app.route('/api/operadoras')
-def listar():
-    q = request.args.get('q')
-    # Sem validação automática
-    # Sem type hints
-    # Sem docs automático
-    return jsonify(operadoras)
-```
-
-### 2. **Framework Frontend: Vue.js vs React vs Vanilla JS**
-
-#### Escolhido: Vue.js 3 (Composition API)
-
-**Justificativa:**
-- **Simplicidade**: Curva de aprendizado suave
-- **Reatividade**: Sistema reativo built-in
-- **Single File Components**: HTML + CSS + JS em um arquivo
-- **Performance**: Virtual DOM otimizado
-- **Vite**: Build ultra-rápido (<1s)
-
-**Implementação:**
-```vue
-<template>
-  <div class="operadora-card">
-    <h3>{{ operadora.razao_social }}</h3>
-    <p>CNPJ: {{ formatarCNPJ(operadora.cnpj) }}</p>
-    <button @click="verDetalhes">Ver Detalhes</button>
-  </div>
-</template>
-
-<script setup>
-import { computed } from 'vue'
-
-const props = defineProps({
-  operadora: Object
-})
-
-const formatarCNPJ = (cnpj) => {
-  return cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5')
-}
-</script>
-
-<style scoped>
-.operadora-card {
-  border: 1px solid #ccc;
-  padding: 1rem;
-}
-</style>
-```
-
-**Comparativo:**
-
-| Framework | Complexidade | Performance | Ecossistema | Bundle Size |
-|-----------|--------------|-------------|-------------|-------------|
-| **Vue.js 3** | 4/5 | 5/5 | 4/5 | ~40KB |
-| React | 3/5 | 4/5 | 5/5 | ~45KB |
-| Vanilla JS | 5/5 | 5/5 | Nao | 0KB |
-
-**Trade-offs:**
-- **Produtividade**: Componentes reutilizáveis
-- **Manutenibilidade**: Código organizado
-- **Developer Experience**: Hot Module Replacement
-- **Bundle size**: +40KB (minificado + gzip)
-- **SEO**: Necessita SSR para otimização
-
-**Alternativa descartada:** Vanilla JS
-```javascript
-// Simples, mas:
-function renderOperadora(operadora) {
-    const div = document.createElement('div');
-    div.innerHTML = `
-        <h3>${operadora.razao_social}</h3>
-        <p>CNPJ: ${operadora.cnpj}</p>
-    `;
-    document.body.appendChild(div);
-}
-// Problema: Sem reatividade, muito código boilerplate
-```
-
-### 3. **Paginação: Offset vs Cursor-based**
-
-#### Escolhido: Offset-based com Limit
-
-**Implementação:**
-```python
-# Backend
-@app.get("/api/operadoras")
-def listar_operadoras(
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100)
-):
-    offset = (page - 1) * limit
-    total = db.count("SELECT COUNT(*) FROM operadoras")
-    operadoras = db.query(
-        f"SELECT * FROM operadoras LIMIT {limit} OFFSET {offset}"
-    )
-    return {
-        "data": operadoras,
-        "total": total,
-        "page": page,
-        "limit": limit
-    }
-```
-
-```javascript
-// Frontend
-async function carregarPagina(pagina) {
-  const response = await fetch(`/api/operadoras?page=${pagina}&limit=20`)
-  const { data, total } = await response.json()
-  
-  totalPaginas.value = Math.ceil(total / 20)
-  operadoras.value = data
-}
-```
-
-**Comparativo:**
-
-| Abordagem | Simplicidade | Performance | Use Case |
-|-----------|--------------|-------------|----------|
-| **Offset-based** | 5/5 | 3/5 (OK até 10k) | Datasets moderados |
-| Cursor-based | 3/5 | 5/5 | Feeds infinitos |
-| Load all | 5/5 | 1/5 (Inviável >1k) | Datasets pequenos |
-
-**Trade-offs:**
-- **UX familiar**: Páginas numeradas (1, 2, 3...)
-- **Navegação direta**: Usuário pode pular para página X
-- **Performance degrada**: OFFSET 10000 é lento
-- **Resultados inconsistentes**: Inserções durante paginação
-
-**Alternativa descartada:** Cursor-based
-```python
-# Mais performático, mas:
-@app.get("/api/operadoras")
-def listar(cursor: str | None = None, limit: int = 20):
-    if cursor:
-        operadoras = db.query(
-            "SELECT * FROM operadoras WHERE id > ? LIMIT ?",
-            (cursor, limit)
-        )
-    else:
-        operadoras = db.query("SELECT * FROM operadoras LIMIT ?", (limit,))
-    
-    next_cursor = operadoras[-1]['id'] if operadoras else None
-    return {"data": operadoras, "next_cursor": next_cursor}
-
-# Problema: Não permite "ir para página 5"
-```
-
-**Quando reconsiderar:** Se dataset crescer para >100k operadoras (usar cursor + cache)
-
-### 4. **Cache: Onde e Por Quanto Tempo**
-
-#### Escolhido: Cache em Memória (TTL 5min) para Estatísticas
-
-**Implementação:**
-```python
-from functools import lru_cache
-import time
-
-CACHE_TTL = 300  # 5 minutos
-
-@lru_cache(maxsize=1)
-def _get_estatisticas_cached_wrapper(timestamp: int):
-    """Cache invalidado a cada 5 minutos via timestamp"""
-    return db.query("""
-        SELECT 
-            COUNT(DISTINCT reg_ans) as total_operadoras,
-            SUM(valor_despesas) as total_despesas,
-            AVG(valor_despesas) as media_despesas
-        FROM consolidados_despesas
-    """)
-
-def get_estatisticas_cached():
-    current_timestamp = int(time.time() / CACHE_TTL)
-    return _get_estatisticas_cached_wrapper(current_timestamp)
-```
-
-**Justificativa:**
-- **Endpoint lento**: Agregação em toda tabela (~5s sem cache)
-- **Dados semi-estáticos**: Atualizam trimestralmente
-- **Alto tráfego**: Dashboard chamado em toda página
-
-**Comparativo:**
-
-| Abordagem | Performance | Complexidade | Stale Data |
-|-----------|-------------|--------------|------------|
-| **Memory cache (Python)** | 5/5 (0.01s) | 2/5 | 5min |
-| Redis | 5/5 (0.05s) | 4/5 | Configurável |
-| Sem cache | 1/5 (5s) | 5/5 | 0s |
-| Materialized View | 4/5 (0.5s) | 3/5 | Manual refresh |
-
-**Trade-offs:**
-- **Simples**: Nativo do Python (functools.lru_cache)
-- **Rápido**: 500x mais rápido (5s → 0.01s)
-- **Limitado**: Apenas 1 instância (não distribuído)
-- **Stale data**: Até 5min desatualizado
-
-**Alternativa para produção:** Redis
-```python
-import redis
-
-r = redis.Redis(host='localhost', port=6379)
-
-def get_estatisticas_cached():
-    cached = r.get('estatisticas')
-    if cached:
-        return json.loads(cached)
-    
-    stats = db.query("SELECT ...")
-    r.setex('estatisticas', 300, json.dumps(stats))  # TTL 5min
-    return stats
-```
-
-### 5. **CORS: Permissivo vs Restritivo**
-
-#### Escolhido: Restritivo (Whitelist de Origens)
-
-**Implementação:**
-```python
-# config.py
-CORS_ORIGINS = [
-    "http://localhost:5173",      # Vite dev
-    "http://localhost:8080",      # Frontend Docker
-    "https://meuapp.com.br",      # Produção
-]
-
-# main_api.py
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,   # Apenas origens permitidas
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],  # Apenas métodos necessários
-    allow_headers=["*"]
-)
-```
-
-**Comparativo:**
-
-| Configuração | Segurança | Flexibilidade | Use Case |
-|--------------|-----------|---------------|----------|
-| **Whitelist** | 5/5 | 3/5 | Producao |
-| allow_origins=["*"] | Nao | 5/5 | Dev apenas |
-| Sem CORS | 5/5 | Nao | API + Frontend mesmo dominio |
-
-**Trade-offs:**
-- **Segurança**: Previne CSRF de outros sites
-- **Controle**: Apenas origens conhecidas
-- **Configuração**: Precisa adicionar cada origem
-- **Dev**: Requer variáveis de ambiente
-
-**Alternativa descartada:** CORS permissivo
-```python
-# PERIGOSO em produção:
-allow_origins=["*"]
-# Problema: Qualquer site pode consumir sua API
-```
-
-### 6. **Busca: LIKE vs Full-Text Search**
-
-#### Escolhido: LIKE com ILIKE (Case-Insensitive)
-
-**Implementação:**
-```python
-def listar_operadoras(page: int, limit: int, busca: str | None):
-    offset = (page - 1) * limit
-    
-    if busca:
-        query = """
-            SELECT * FROM operadoras 
-            WHERE razao_social ILIKE %s OR cnpj ILIKE %s
-            LIMIT %s OFFSET %s
-        """
-        params = (f"%{busca}%", f"%{busca}%", limit, offset)
-    else:
-        query = "SELECT * FROM operadoras LIMIT %s OFFSET %s"
-        params = (limit, offset)
-    
-    return db.query(query, params)
-```
-
-**Comparativo:**
-
-| Abordagem | Performance | Relevância | Complexidade |
-|-----------|-------------|------------|--------------|
-| **ILIKE** | 3/5 (OK até 10k) | 3/5 | 5/5 |
-| Full-text (pg_trgm) | 5/5 | 4/5 | 3/5 |
-| Elasticsearch | 5/5 | 5/5 | 2/5 |
-
-**Trade-offs:**
-- **Simplicidade**: SQL nativo
-- **Suficiente**: Para 700 operadoras (~50ms)
-- **Sem ranking**: Não ordena por relevância
-- **Não fuzzy**: "Bradesco" ≠ "Bradescoo"
-
-**Quando reconsiderar:**
-```sql
--- Se precisar busca fuzzy:
-CREATE EXTENSION pg_trgm;
-CREATE INDEX idx_operadoras_trgm ON operadoras USING gin (razao_social gin_trgm_ops);
-
-SELECT *, similarity(razao_social, 'Bradescoo') as score
-FROM operadoras
-WHERE razao_social % 'Bradescoo'  -- Operador de similaridade
-ORDER BY score DESC;
-```
-
-### 7. **Validação: Frontend vs Backend vs Ambos**
-
-#### Escolhido: Ambos (Defense in Depth)
-
-**Frontend (Vue.js):**
-```vue
-<script setup>
-import { ref, computed } from 'vue'
-
-const cnpj = ref('')
-const erro = ref('')
-
-const cnpjValido = computed(() => {
-  return /^\d{14}$/.test(cnpj.value.replace(/\D/g, ''))
-})
-
-function buscar() {
-  if (!cnpjValido.value) {
-    erro.value = 'CNPJ deve ter 14 dígitos'
-    return
-  }
-  
-  fetch(`/api/operadoras/${cnpj.value}`)
-}
-</script>
-```
-
-**Backend (FastAPI):**
-```python
-from pydantic import BaseModel, validator
-
-class OperadoraCreate(BaseModel):
-    cnpj: str
-    razao_social: str
-    
-    @validator('cnpj')
-    def validar_cnpj(cls, v):
-        cnpj_numeros = ''.join(filter(str.isdigit, v))
-        if len(cnpj_numeros) != 14:
-            raise ValueError('CNPJ deve ter 14 dígitos')
-        return cnpj_numeros
-```
-
-**Justificativa:**
-- **Frontend**: Feedback imediato (UX)
-- **Backend**: Segurança (nunca confiar no cliente)
-
-**Trade-offs:**
-- **Segurança**: Backend sempre valida
-- **UX**: Erros antes de enviar request
-- **Duplicação**: Lógica em 2 lugares
-- **Sincronização**: Manter regras consistentes
-
-**Alternativa descartada:** Apenas frontend
-```javascript
-// INSEGURO:
-function criar() {
-  if (valido) {
-    fetch('/api/operadoras', { method: 'POST', body: dados })
-    // Problema: Atacante pode burlar validação via curl/Postman
-  }
-}
-```
-
-## Métricas de Performance
-
-### API Endpoints
-
-| Endpoint | Tempo Médio | Throughput |
-|----------|-------------|------------|
-| GET /api/operadoras | 50ms | 20 req/s |
-| GET /api/operadoras/:cnpj | 30ms | 33 req/s |
-| GET /api/estatisticas (cached) | 10ms | 100 req/s |
-| GET /api/estatisticas (no cache) | 5000ms | 0.2 req/s |
-
-### Frontend
-
-| Métrica | Valor |
-|---------|-------|
-| First Contentful Paint | 0.8s |
-| Time to Interactive | 1.2s |
-| Bundle size (gzip) | 85KB |
-| Lighthouse Score | 95/100 |
-
-## Melhorias Futuras
-
-### Curto Prazo
-1. **Rate limiting** (10 req/s por IP)
-2. **Autenticação JWT** (para endpoints admin)
-3. **Compressão gzip** (reduzir payload 70%)
-
-### Longo Prazo
-1. **GraphQL** (substituir REST para queries complexas)
-2. **WebSockets** (atualização em tempo real)
-3. **CDN** para assets estáticos
-4. **Server-Side Rendering** (melhor SEO)
+### Backend (FastAPI)
+1. Abra um terminal em `testes/4-teste_de_api_e_interface_web/backend`
+2. Instale as dependências: `pip install -r requirements.txt`
+3. Execute a API: `python run.py`
+
+Rotas e docs:
+- `http://localhost:8000/docs`
+
+Como visualizar a documentação automática:
+- Com a API rodando, acesse os links acima para ver e testar as rotas no navegador.
+
+### Frontend (Vue.js)
+1. Abra um terminal em `testes/4-teste_de_api_e_interface_web/frontend`
+2. Instale as dependências: `npm install`
+3. Configure a API em `.env` (`VITE_API_URL`)
+4. Execute: `npm run dev`
+
+Aplicação em `http://localhost:5173`
+
+## Dados utilizados
+
+Escolha: banco do teste 3 (PostgreSQL) acessado via SQLAlchemy.
+
+Prós:
+- Agregações e filtros com SQL nas tabelas `operadoras`, `despesas_agregadas` e `despesas_agregadas_c_deducoes`.
+- Melhor desempenho para paginação e estatísticas.
+
+Contras:
+- Requer banco configurado localmente ou via Docker.
+- Leitura direta de CSV não foi implementada neste código.
+
+## Endpoints
+
+| Método | Endpoint | Descrição |
+|--------|----------|-----------|
+| GET | `/` | Health check raiz |
+| GET | `/health` | Status da API e banco |
+| GET | `/docs` | Documentação Swagger |
+| GET | `/api/operadoras` | Listar operadoras (paginado) |
+| GET | `/api/operadoras/{cnpj}` | Detalhes operadora |
+| GET | `/api/operadoras/{cnpj}/despesas` | Despesas operadora |
+| GET | `/api/estatisticas` | Estatísticas gerais |
+
+## Trade-offs técnicos - Backend
+
+### 4.2.1 Framework
+Escolha: FastAPI.
+
+Prós:
+- É rápido e já vem com documentação automática das rotas.
+- Ajuda a evitar erros simples porque valida os dados de entrada.
+- Deixa o código mais organizado para crescer depois.
+
+Contras:
+- Tem mais conceitos para aprender do que Flask.
+- Tem menos exemplos prontos do que Django REST.
+
+Alternativa considerada: Flask.
+
+Prós do Flask:
+- É bem simples de começar e tem muitos exemplos.
+- É leve e fácil para projetos pequenos.
+
+Contras do Flask:
+- A validação e a documentação precisam ser feitas “na mão”.
+- Em projetos que crescem, tende a virar mais código repetido.
+
+Conclusão:
+Escolhi FastAPI porque a API tem várias rotas e dados com validação. Ele entrega desempenho melhor e documentação automática, o que facilita manutenção e testes, mesmo sendo um pouco mais difícil no início.
+
+### 4.2.2 Paginação
+Escolha: offset-based (`page` + `limit`).
+Descrição:
+- Usa número da página e quantidade por página. Ex: `page=2&limit=10` pega os itens 11–20.
+
+Prós:
+- Simples de implementar e consumir.
+- Permite “ir para página X”.
+
+Contras:
+- Perde performance com offsets altos.
+- Pode sofrer inconsistência em datasets muito mutáveis.
+
+Alternativas consideradas:
+
+Opção B: Cursor-based.
+Descrição:
+- Usa um “marcador” do último item da página anterior (ex: id ou timestamp) para buscar a próxima página.
+Prós:
+- Melhor performance em listas grandes e scroll infinito.
+Contras:
+- Não permite pular direto para uma página específica.
+
+Opção C: Keyset pagination.
+Descrição:
+- Usa uma coluna ordenável (ex: id, data) e traz itens “maiores/menores” que o último visto.
+Prós:
+- Performance estável em volumes maiores.
+Contras:
+- Requer uma coluna ordenável bem definida.
+- Não permite “pular” páginas facilmente.
+
+Conclusão:
+Escolhi offset-based porque o volume é moderado e as atualizações não são constantes. Isso simplifica o frontend e mantém a navegação por páginas, que é mais fácil para o usuário.
+
+Exemplo na API:
+- `GET /api/operadoras?page=1&limit=10`
+
+### 4.2.3 Cache vs queries diretas
+Escolha: cache em memória com TTL para `/api/estatisticas`.
+Descrição:
+- O resultado fica guardado por alguns minutos para evitar repetir a consulta pesada toda hora.
+
+Prós:
+- Reduz custo de agregações pesadas.
+- Latência menor no dashboard.
+
+Contras:
+- Dados ficam desatualizados até o TTL expirar. Como os dados são trimestrais, isso tem baixo impacto prático e pode ser visto como aceitável.
+- Cache em memória não escala entre múltiplas instâncias.
+
+Detalhe de implementação:
+- TTL configurável via `STATS_CACHE_TTL` (padrão 300s).
+
+Alternativas consideradas:
+
+Opção A: Calcular sempre na hora.
+Descrição:
+- Executa as agregações no banco a cada chamada.
+Prós:
+- Dados sempre atualizados.
+Contras:
+- Mais lento e gera mais carga no banco.
+
+Opção C: Pré-calcular e armazenar em tabela.
+Descrição:
+- Uma rotina atualiza uma tabela com estatísticas já prontas.
+Prós:
+- Resposta muito rápida e previsível.
+Contras:
+- Exige job agendado e mais manutenção.
+- Dados ficam desatualizados até a próxima atualização.
+
+Conclusão:
+Escolhi cache por X minutos porque as estatísticas são trimestrais e não mudam com frequência. O ganho de performance é alto e a consistência continua adequada para o dashboard, então esta é a melhor escolha para este cenário.
+
+### 4.2.4 Estrutura de resposta
+Escolha: dados + metadados (`{ data, total, page, limit }`).
+Descrição:
+- A resposta vem com a lista e informações de paginação (quantidade total, página atual e limite).
+
+Prós:
+- Frontend calcula paginação sem chamadas extras.
+- Facilita UX com total de registros.
+
+Contras:
+- Resposta levemente maior.
+
+Alternativas consideradas:
+
+Opção A: Apenas os dados (`[{...}, {...}]`).
+Prós:
+- Resposta menor e mais simples.
+Contras:
+- O frontend precisa de outra chamada para saber o total.
+- Paginação fica mais difícil de montar.
+
+Conclusão:
+Escolhi dados + metadados porque deixa o frontend mais simples e evita chamadas extras, o que melhora a experiência do usuário.
+
+### CORS
+Foi utilizado CORS com origens configuráveis.
+
+Prós:
+- Evita acesso indevido por origens não autorizadas.
+
+Contras:
+- Exige manutenção da lista de origens ao mudar ambientes.
+
+Detalhe de implementação:
+- `allow_origins` vem de `CORS_ORIGINS` (padrão `http://localhost:5173`).
+
+## Trade-offs técnicos - Frontend
+
+### 4.3.1 Busca/Filtro
+Escolha: busca no servidor.
+Descrição:
+- O frontend envia o termo de busca e a API filtra no banco.
+
+Prós:
+- Menor payload e melhor performance em datasets médios/grandes.
+- Resultados consistentes com a fonte de dados.
+
+Contras:
+- Depende de latência de rede.
+- Requer debounce para evitar excesso de chamadas.
+
+Alternativas consideradas:
+
+Opção B: Busca no cliente.
+Descrição:
+- Carrega todos os dados e filtra no navegador.
+Prós:
+- Resposta imediata ao digitar.
+Contras:
+- Fica pesada quando há muitas operadoras.
+
+Opção C: Híbrido.
+Descrição:
+- Usa busca no servidor e mantém cache local de páginas já visitadas.
+Prós:
+- Reduz chamadas repetidas.
+Contras:
+- Mais complexidade no frontend.
+
+Conclusão:
+Como o volume de operadoras é grande para carregar tudo no navegador, a busca no servidor é a melhor escolha. Ela mantém a aplicação leve e com resultados consistentes, mesmo que o usuário tenha uma pequena espera de rede.
+
+### 4.3.2 Gerenciamento de estado
+Escolha: props/events + serviços de API (sem store global).
+Descrição:
+- Os dados ficam nos componentes e são passados por props, enquanto as chamadas ficam nos services.
+
+Prós:
+- Menor complexidade para app pequeno.
+- Menos dependências.
+
+Contras:
+- Pode exigir prop drilling se a app crescer.
+
+Alternativas consideradas:
+
+Opção B: Vuex/Pinia.
+Descrição:
+- Um store global centraliza o estado da aplicação.
+Prós:
+- Facilita compartilhar estado entre várias telas.
+Contras:
+- Mais configuração e código para um app simples.
+
+Opção C: Composables (Vue 3).
+Descrição:
+- Funções reutilizáveis para concentrar lógica e estado.
+Prós:
+- Reuso de lógica com menos boilerplate que store.
+Contras:
+- Ainda exige organização extra e pode virar complexidade desnecessária.
+
+Conclusão:
+Como o app é simples e o estado não precisa ser global, props/events + services resolvem bem. Se o projeto crescer, um store ou composables pode ser adotado.
+
+### 4.3.3 Performance da tabela
+Escolha: paginação server-side e limite de registros por página.
+Descrição:
+- A tabela não carrega tudo de uma vez. A cada página, o frontend pede à API só um bloco (ex: 10 registros), usando `page` e `limit`.
+
+Prós:
+- Evita renderização de grandes volumes no cliente.
+- UX previsível com páginas.
+
+Contras:
+- Não permite scroll infinito por padrão.
+- Requer chamadas adicionais ao trocar página.
+
+Conclusão:
+Essa abordagem mantém o navegador leve e rápido, mesmo com muitas operadoras.
+
+### 4.3.4 Erros e loading
+Estratégia:
+- Loading states durante requisições nas páginas Home e Detalhes.
+- Interceptor do Axios mapeia timeout, erro de rede, 404 e 500.
+- Mensagem genérica para falhas inesperadas quando não há detalhe do backend.
+- Estado vazio quando não há resultados.
+
+Detalhamento:
+
+- Erros de rede/API:
+	- Timeout: mensagem clara sobre demora do servidor.
+	- Sem conexão: mensagem de erro de rede.
+	- 404/500: mensagens específicas por status.
+	- Outros: mensagem genérica quando não há detalhe do backend.
+
+- Estados de loading:
+	- Exibido no carregamento da lista de operadoras e na tela de detalhes.
+	- Evita que o usuário ache que a tela “travou”.
+
+- Dados vazios:
+	- Mensagem “Nenhuma operadora encontrada” quando a busca não retorna dados.
+	- No detalhe, mostra que não há despesas quando a lista vem vazia.
+
+Prós:
+- Melhora UX e reduz frustração.
+- Ajuda a diagnosticar falhas comuns.
+
+Contras:
+- Mensagens específicas exigem mapeamento de erros.
+
+Análise crítica:
+- Usei mensagens específicas para erros comuns porque isso orienta o usuário (ex.: falta de internet).
+- Para erros inesperados, a mensagem genérica evita expor detalhes técnicos e mantém a UX simples.
+
+## Documentação
+
+Postman: coleção em `backend/postman_collection.json` com exemplos de requisição e resposta.
+
+## Observação
+
+As rotas do backend atendem às tarefas solicitadas, incluindo paginação, detalhes por CNPJ, histórico de despesas e estatísticas agregadas.
 
 ## Conclusão
 
-A arquitetura API + SPA prioriza:
-- **Developer Experience** (FastAPI + Vue.js + Vite)
-- **Performance** (Cache + Paginação + Async)
-- **Segurança** (CORS + Validação dupla + Pydantic)
-- **UX** (Feedback imediato + Navegação fluida)
+A arquitetura API + SPA segue o que foi implementado no projeto:
+- Backend em FastAPI com rotas e documentação automática.
+- Frontend em Vue.js consumindo a API.
+- Paginação, cache e tratamento de erros conforme descrito acima.
 
-**Trade-off principal:** Complexidade de 2 aplicações separadas (API + Frontend) em troca de flexibilidade, escalabilidade independente e melhor separação de responsabilidades.
+Trade-off principal:
+- Duas aplicações (API + Frontend) aumentam a complexidade de deploy, mas deixam responsabilidades separadas.
 
-**Stack escolhido é ideal para:** Aplicações médias (1k-100k usuários), com requisitos de performance moderados e necessidade de evolução rápida.
+Observação final:
+- SSR não foi implementado por questão de tempo e porque não estava no escopo. Fica como ideia de melhoria futura.

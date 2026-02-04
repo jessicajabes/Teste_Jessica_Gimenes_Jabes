@@ -6,7 +6,7 @@ from typing import Optional, List, Any
 from datetime import datetime
 
 
-# === OPERADORAS ===
+# OPERADORAS 
 
 class OperadoraBase(BaseModel):
     """Schema base de operadora"""
@@ -28,7 +28,7 @@ class OperadoraDetalhes(OperadoraBase):
     data_carga: Optional[datetime] = None
 
 
-# === DESPESAS ===
+# DESPESAS
 
 class DespesaItem(BaseModel):
     """Item de despesa"""
@@ -41,7 +41,7 @@ class DespesaItem(BaseModel):
     qtd_trimestres: int
 
 
-# === ESTATÍSTICAS ===
+#  ESTATÍSTICAS 
 
 class TopOperadora(BaseModel):
     """Top operadora por despesas"""
@@ -68,7 +68,7 @@ class Estatisticas(BaseModel):
     despesas_por_uf: List[DespesaPorUF]
 
 
-# === PAGINAÇÃO ===
+#  PAGINAÇÃO 
 
 class PaginationMetadata(BaseModel):
     """Metadados de paginação"""
@@ -84,7 +84,7 @@ class PaginatedResponse(BaseModel):
     metadata: PaginationMetadata
 
 
-# === RESPOSTAS DE ERRO ===
+# RESPOSTAS DE ERRO 
 
 class ErrorResponse(BaseModel):
     """Resposta de erro padrão"""

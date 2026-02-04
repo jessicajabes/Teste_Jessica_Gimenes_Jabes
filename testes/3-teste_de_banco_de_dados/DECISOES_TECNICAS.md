@@ -99,9 +99,9 @@ JUSTIFICATIVA: Normaliza entrada, rejeita valores > 4 ou < 1 via CHECK constrain
 
 ### CNPJ/Registro Inválido
 
-PROBLEMA: CNPJ vazio ou nulo em linha
-SOLUÇÃO IMPLEMENTADA: WHERE TRIM(reg_ans) IS NOT NULL AND ... filtra antes de INSERT
-JUSTIFICATIVA: Rejeita registro (chave primária obrigatória), evita duplicação
+PROBLEMA: CNPJ ou reg_ans vazio/nulo em linha
+SOLUÇÃO IMPLEMENTADA: COALESCE(NULLIF(TRIM(reg_ans), ''), '00000') fornece fallback
+JUSTIFICATIVA: Preserva registros (não rejeita), utiliza valor padrão '00000' para análise de inconsistências
 
 ### Valores Monetários com Formato
 

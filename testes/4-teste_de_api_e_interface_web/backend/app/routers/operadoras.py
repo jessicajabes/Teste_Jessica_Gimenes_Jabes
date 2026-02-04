@@ -1,28 +1,4 @@
-"""
-Router de Operadoras
-Define todas as rotas relacionadas a operadoras
 
-TRADE-OFF: Estrutura de Resposta da API
-DECISÃO: Dados + Metadados (Opção B)
-
-JUSTIFICATIVA:
-- Frontend precisa de informações de paginação (total, páginas, etc.)
-- Facilita implementação de componentes de paginação
-- Padrão RESTful amplamente adotado
-- Permite calcular elementos da UI (ex: "Mostrando 1-10 de 100")
-- Melhora UX ao mostrar progresso e navegação
-
-ESTRUTURA:
-{
-  "data": [...],  // Dados reais
-  "metadata": {   // Informações auxiliares
-    "total": 100,
-    "page": 1,
-    "limit": 10,
-    "total_pages": 10
-  }
-}
-"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from app.services.operadora_service import OperadoraService
@@ -50,17 +26,7 @@ async def listar_operadoras(
     limit: int = Query(10, ge=1, le=100, description="Itens por página (máx: 100)"),
     search: Optional[str] = Query(None, description="Buscar por razão social ou CNPJ")
 ):
-    """
-    Lista operadoras com paginação e busca
-    
-    Args:
-        page: Número da página (1-indexed)
-        limit: Quantidade de itens por página
-        search: Termo de busca (razão social ou CNPJ)
-    
-    Returns:
-        Objeto com 'data' (lista de operadoras) e 'metadata' (info de paginação)
-    """
+
     try:
         resultado = service.listar_operadoras(page, limit, search)
         return resultado
@@ -78,18 +44,7 @@ async def listar_operadoras(
     """
 )
 async def obter_operadora(cnpj: str):
-    """
-    Obtém detalhes de uma operadora por CNPJ
-    
-    Args:
-        cnpj: CNPJ da operadora (somente números)
-    
-    Returns:
-        Detalhes completos da operadora
-    
-    Raises:
-        404: Operadora não encontrada
-    """
+
     try:
         operadora = service.obter_operadora_por_cnpj(cnpj)
         
@@ -120,18 +75,7 @@ async def obter_operadora(cnpj: str):
     """
 )
 async def obter_despesas_operadora(cnpj: str):
-    """
-    Obtém histórico de despesas de uma operadora
-    
-    Args:
-        cnpj: CNPJ da operadora (somente números)
-    
-    Returns:
-        Lista de despesas por trimestre (com e sem dedução)
-    
-    Raises:
-        404: Operadora não encontrada
-    """
+
     try:
         despesas = service.obter_despesas_operadora(cnpj)
         

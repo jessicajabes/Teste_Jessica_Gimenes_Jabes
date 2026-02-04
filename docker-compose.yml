@@ -30,7 +30,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 8000
       STATS_CACHE_TTL: 600
-      CORS_ORIGINS: http://localhost:5173,http://localhost:3000
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
     ports:
       - "8000:8000"
     volumes:
