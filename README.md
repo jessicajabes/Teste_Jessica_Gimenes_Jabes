@@ -1,6 +1,15 @@
 ## Como executar
 
-Pré-requisitos: Docker e Docker Compose.
+### Clone o repositório
+
+```bash
+git clone https://github.com/jessicajabes/Teste_Jessica_Gimenes_Jabes.git
+cd Teste_Jessica_Gimenes_Jabes
+```
+
+### Pré-requisitos
+
+- Docker e Docker Compose instalados
 
 **Importante:** Todos os comandos devem ser executados a partir da raiz do projeto (`Teste_Jessica_Jabes/`).
 
